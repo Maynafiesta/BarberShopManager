@@ -1,27 +1,19 @@
+// lib/include/model/Appointment.h
 #pragma once
-#include <string>
-#include "Customer.h"
-#include "Employee.h"
-#include "Service.h"
-#include "TimeSlot.h"
+#include "model/Customer.h"
+#include "model/Employee.h"
+#include "model/Service.h"
+#include "model/TimeSlot.h"
 
 class Appointment {
 public:
-    enum class Status {
-        Pending,
-        Approved,
-        Rejected
-    };
+    enum class Status { Pending, Approved, Rejected };
 
-    Appointment(const Customer* customer,
-                const Employee* employee,
-                const Service& service,
-                const TimeSlot& slot)
-        : m_customer(customer),
-          m_employee(employee),
-          m_service(service),
-          m_slot(slot),
-          m_status(Status::Pending) {}
+    Appointment(const Customer* c = nullptr,
+                const Employee* e = nullptr,
+                const Service& s = {},
+                const TimeSlot& t = {})
+        : m_customer(c), m_employee(e), m_service(s), m_slot(t), m_status(Status::Pending) {}
 
     const Customer* getCustomer() const noexcept { return m_customer; }
     const Employee* getEmployee() const noexcept { return m_employee; }

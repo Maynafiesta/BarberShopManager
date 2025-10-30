@@ -1,35 +1,24 @@
+// lib/include/model/Employee.h
 #pragma once
 #include <vector>
 #include <string>
-#include "Person.h"
-#include "TimeSlot.h"
+#include "model/Person.h"
+#include "model/TimeSlot.h"
 
 class Employee : public Person {
 public:
     Employee(std::string name, std::string phone)
         : Person(std::move(name), std::move(phone), Role::Employee) {}
 
-    void addSkill(const std::string& serviceName) {
-        m_skills.push_back(serviceName);
-    }
+    void addSkill(const std::string& s) { m_skills.push_back(s); }
+    const std::vector<std::string>& getSkills() const noexcept { return m_skills; }
 
-    const std::vector<std::string>& getSkills() const noexcept {
-        return m_skills;
-    }
+    void addAvailability(const TimeSlot& t) { m_available.push_back(t); }
+    const std::vector<TimeSlot>& getAvailability() const noexcept { return m_available; }
 
-    void addAvailability(const TimeSlot& slot) {
-        m_availableSlots.push_back(slot);
-    }
-
-    const std::vector<TimeSlot>& getAvailability() const noexcept {
-        return m_availableSlots;
-    }
-
-    std::string summary() const override {
-        return "Employee: " + m_name;
-    }
+    std::string summary() const override { return "Employee: " + m_name; }
 
 private:
-    std::vector<std::string> m_skills;        // "Saç kesimi", "Boya", "Sakal tıraşı"
-    std::vector<TimeSlot>    m_availableSlots;
+    std::vector<std::string> m_skills;
+    std::vector<TimeSlot>    m_available;
 };
