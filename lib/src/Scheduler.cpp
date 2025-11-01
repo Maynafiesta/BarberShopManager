@@ -18,19 +18,23 @@ bool Scheduler::hasCollision(const Salon& salon, const Employee& employee, const
     return false;
 }
 
-bool Scheduler::createAppointment(Salon& salon,
-                                  const Customer& customer,
-                                  const Employee& employee,
-                                  const Service& service,
-                                  const TimeSlot& desired,
-                                  Appointment& out) {
-    if (!isInsideWorkingHours(salon, desired)) return false;
-    if (!isEmployeeAvailable(employee, desired)) return false;
-    if (hasCollision(salon, employee, desired))  return false;
+Scheduler::CreateResult Scheduler::createAppointment(Salon& salon,
+                                                     const Customer& customer,
+                                                     const Employee& employee,
+                                                     const Service& service,
+                                                     const TimeSlot& desired,
+                                                     Appointment& out) {
+    if (!isInsideWorkingHours(salon, desired))
+        return CreateResult::OutsideWorkingHours;
+
+    if (!isEmployeeAvailable(employee, desired))
+        return CreateResult::EmployeeNotAvailable;
+
+    if (hasCollision(salon, employee, desired))
+        return CreateResult::Collision;
 
     out = Appointment(&customer, &employee, service, desired);
-    // onay sürecini şimdilik otomatik yapalım
-    const_cast<Appointment&>(out).approve();
+    const_cast<Appointment&>(out).approve(); // şimdilik otomatik onay
     salon.addAppointment(out);
-    return true;
+    return CreateResult::Ok;
 }
