@@ -18,6 +18,13 @@ bool Scheduler::hasCollision(const Salon& salon, const Employee& employee, const
     return false;
 }
 
+bool Scheduler::employeeHasSkill(const Employee& employee, const Service& service) const {
+    for (const auto& sk : employee.getSkills())
+        if (sk == service.getName())
+            return true;
+    return false;
+}
+
 Scheduler::CreateResult Scheduler::createAppointment(Salon& salon,
                                                      const Customer& customer,
                                                      const Employee& employee,
@@ -27,6 +34,9 @@ Scheduler::CreateResult Scheduler::createAppointment(Salon& salon,
     if (!isInsideWorkingHours(salon, desired))
         return CreateResult::OutsideWorkingHours;
 
+    if (!employeeHasSkill(employee, service))
+        return CreateResult::EmployeeLacksSkill;
+
     if (!isEmployeeAvailable(employee, desired))
         return CreateResult::EmployeeNotAvailable;
 
@@ -34,7 +44,7 @@ Scheduler::CreateResult Scheduler::createAppointment(Salon& salon,
         return CreateResult::Collision;
 
     out = Appointment(&customer, &employee, service, desired);
-    const_cast<Appointment&>(out).approve(); // şimdilik otomatik onay
+    const_cast<Appointment&>(out).approve();
     salon.addAppointment(out);
     return CreateResult::Ok;
 }

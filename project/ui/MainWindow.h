@@ -7,7 +7,7 @@ class QTableWidget;
 class QPushButton;
 class QPlainTextEdit;
 class QTimeEdit;
-class QComboBox;
+class QDateEdit;
 
 #include "model/Salon.h"
 #include "model/Customer.h"
@@ -30,6 +30,7 @@ private slots:
 private:
     void buildUi();
     void refreshTables();
+    void refreshAppointments();      // yeni
     void log(const QString& msg);
 
     int selectedEmployeeRow() const;
@@ -41,10 +42,13 @@ private:
     QWidget*        central{nullptr};
     QTableWidget*   tblEmployees{nullptr};
     QTableWidget*   tblServices{nullptr};
+    QTableWidget*   tblAppointments{nullptr};   // yeni
+
     QPushButton*    btnLoadDemo{nullptr};
     QPushButton*    btnCreateAppt{nullptr};
     QPlainTextEdit* txtLog{nullptr};
     QTimeEdit*      timeEdit{nullptr};
+    QDateEdit*      dateEdit{nullptr};          // yeni
 
     // iş verisi
     Salon salon{"Merkez Şube"};

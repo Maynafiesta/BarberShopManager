@@ -2,7 +2,6 @@
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 
-#include <QLabel>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QTableWidget>
@@ -11,7 +10,9 @@
 #include <QPlainTextEdit>
 #include <QDateTime>
 #include <QTimeEdit>
+#include <QDateEdit>
 #include <QMessageBox>
+#include <QLabel>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
@@ -19,6 +20,7 @@ MainWindow::MainWindow(QWidget* parent)
     setWindowTitle("BarberShopManager");
     buildUi();
     refreshTables();
+    refreshAppointments();
 }
 
 MainWindow::~MainWindow() { delete ui; }
@@ -27,22 +29,31 @@ void MainWindow::buildUi() {
     central = new QWidget(this);
     auto* v = new QVBoxLayout(central);
 
-    // Üst şerit
+    // Üst şerit (demo + tarih/saat + oluştur)
     auto* top = new QHBoxLayout();
-    btnLoadDemo     = new QPushButton("Demo veriyi yükle", central);
-    timeEdit        = new QTimeEdit(QTime(10,0), central);
+    btnLoadDemo   = new QPushButton("Demo veriyi yükle", central);
+
+    dateEdit = new QDateEdit(QDate::currentDate(), central);
+    dateEdit->setCalendarPopup(true);
+    dateEdit->setDisplayFormat("dd.MM.yyyy");
+
+    timeEdit = new QTimeEdit(QTime(10,0), central);
     timeEdit->setDisplayFormat("HH:mm");
-    btnCreateAppt   = new QPushButton("Seçili çalışan + hizmet ile randevu", central);
+
+    btnCreateAppt = new QPushButton("Seçili çalışan + hizmet ile randevu", central);
 
     top->addWidget(btnLoadDemo);
     top->addSpacing(12);
+    top->addWidget(new QLabel("Tarih:", central));
+    top->addWidget(dateEdit);
+    top->addSpacing(8);
     top->addWidget(new QLabel("Saat:", central));
     top->addWidget(timeEdit);
     top->addSpacing(12);
     top->addWidget(btnCreateAppt);
     top->addStretch(1);
 
-    // Orta tablolar
+    // Orta tablolar (çalışanlar ve hizmetler)
     auto* mid = new QHBoxLayout();
     tblEmployees = new QTableWidget(0, 2, central);
     tblEmployees->setHorizontalHeaderLabels({ "Çalışan", "Yetenekler" });
@@ -60,8 +71,16 @@ void MainWindow::buildUi() {
     tblServices->setSelectionMode(QAbstractItemView::SingleSelection);
     tblServices->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
-    mid->addWidget(tblEmployees, /*stretch*/1);
-    mid->addWidget(tblServices,  /*stretch*/1);
+    mid->addWidget(tblEmployees, 1);
+    mid->addWidget(tblServices,  1);
+
+    // Randevular tablosu
+    tblAppointments = new QTableWidget(0, 5, central);
+    tblAppointments->setHorizontalHeaderLabels({ "Tarih/Saat", "Çalışan", "Hizmet", "Durum", "Ücret" });
+    tblAppointments->horizontalHeader()->setStretchLastSection(true);
+    tblAppointments->verticalHeader()->setVisible(false);
+    tblAppointments->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tblAppointments->setSelectionBehavior(QAbstractItemView::SelectRows);
 
     // Alt log
     txtLog = new QPlainTextEdit(central);
@@ -70,6 +89,8 @@ void MainWindow::buildUi() {
 
     v->addLayout(top);
     v->addLayout(mid);
+    v->addWidget(new QLabel("Randevular:", central));
+    v->addWidget(tblAppointments);
     v->addWidget(txtLog);
 
     setCentralWidget(central);
@@ -108,6 +129,32 @@ void MainWindow::refreshTables() {
     tblServices->resizeColumnsToContents();
 }
 
+void MainWindow::refreshAppointments() {
+    const auto& apps = salon.getAppointments();
+    tblAppointments->setRowCount(static_cast<int>(apps.size()));
+    for (int i = 0; i < static_cast<int>(apps.size()); ++i) {
+        const auto& a = apps[static_cast<size_t>(i)];
+        const auto start = QDateTime::fromSecsSinceEpoch(a.getSlot().startEpoch);
+        QString when = start.toString("dd.MM.yyyy HH:mm");
+        QString who  = a.getEmployee() ? QString::fromStdString(a.getEmployee()->getName()) : "-";
+        QString what = QString::fromStdString(a.getService().getName());
+        QString st;
+        switch (a.getStatus()) {
+            case Appointment::Status::Pending:  st = "Bekliyor"; break;
+            case Appointment::Status::Approved: st = "Onaylı";   break;
+            case Appointment::Status::Rejected: st = "Reddedildi"; break;
+        }
+        QString price = QString::number(a.getTotalPrice(), 'f', 2);
+
+        tblAppointments->setItem(i, 0, new QTableWidgetItem(when));
+        tblAppointments->setItem(i, 1, new QTableWidgetItem(who));
+        tblAppointments->setItem(i, 2, new QTableWidgetItem(what));
+        tblAppointments->setItem(i, 3, new QTableWidgetItem(st));
+        tblAppointments->setItem(i, 4, new QTableWidgetItem(price));
+    }
+    tblAppointments->resizeColumnsToContents();
+}
+
 void MainWindow::log(const QString& msg) {
     txtLog->appendPlainText(QTime::currentTime().toString("HH:mm:ss") + "  " + msg);
 }
@@ -125,10 +172,10 @@ int MainWindow::selectedServiceRow() const {
 void MainWindow::onLoadDemo() {
     const auto today = QDate::currentDate();
     const auto start = QDateTime(today, QTime(9,0), Qt::LocalTime).toSecsSinceEpoch();
+
     salon = Salon("Merkez Şube");
     salon.setWorkingHours(TimeSlot{ static_cast<std::time_t>(start), 12*60 }); // 09:00-21:00
 
-    // Çalışanlar ve uygunluk
     Employee e1("Ahmet Usta",  "0500 000 0001");
     e1.addSkill("Saç kesimi");
     e1.addSkill("Sakal tıraşı");
@@ -144,18 +191,17 @@ void MainWindow::onLoadDemo() {
     salon.addEmployee(e1);
     salon.addEmployee(e2);
 
-    // Hizmetler
     salon.addService(Service("Saç kesimi", 30, 250.0));
     salon.addService(Service("Sakal tıraşı", 20, 150.0));
     salon.addService(Service("Boya", 90, 900.0));
     salon.addService(Service("Fön", 15, 120.0));
 
-    // Bir müşteri
     customers.clear();
     customers.emplace_back("Tarık", "0555 555 55 55");
 
     refreshTables();
-    log("Demo veriler yüklendi. Tablolardan bir çalışan ve bir hizmet seç; saat alanından randevu saati belirle.");
+    refreshAppointments();
+    log("Demo yüklendi. Tarih/Saat seç, bir çalışan + bir hizmet seç ve randevu oluştur.");
 }
 
 void MainWindow::onCreateAppointment() {
@@ -174,10 +220,10 @@ void MainWindow::onCreateAppointment() {
     const auto& service  = salon.getServices()[static_cast<size_t>(srow)];
     const auto& customer = customers.front();
 
-    const auto today = QDate::currentDate();
+    const QDate d = dateEdit->date();
     const QTime t = timeEdit->time();
     TimeSlot slot { static_cast<std::time_t>(
-        QDateTime(today, t, Qt::LocalTime).toSecsSinceEpoch()),
+        QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
         service.getDurationMinutes()
     };
 
@@ -186,17 +232,22 @@ void MainWindow::onCreateAppointment() {
 
     switch (res) {
         case Scheduler::CreateResult::Ok:
-            log(QString("Randevu onaylandı: %1 - %2 @ %3 (₺%4)")
+            log(QString("Randevu onaylandı: %1 - %2 @ %3 (%4) ₺%5")
                 .arg(QString::fromStdString(employee.getName()))
                 .arg(QString::fromStdString(service.getName()))
-                .arg(t.toString("HH:mm"))
+                .arg(QDateTime::fromSecsSinceEpoch(created.getSlot().startEpoch).toString("dd.MM.yyyy HH:mm"))
+                .arg(service.getDurationMinutes())
                 .arg(created.getTotalPrice(), 0, 'f', 2));
+            refreshAppointments();
             break;
         case Scheduler::CreateResult::OutsideWorkingHours:
             log("Randevu mesai saatleri dışında.");
             break;
         case Scheduler::CreateResult::EmployeeNotAvailable:
             log("Çalışan bu saatte uygun değil (uygunluk dilimleri dışında).");
+            break;
+        case Scheduler::CreateResult::EmployeeLacksSkill:
+            log("Çalışan bu hizmeti yapamıyor (yetenek listesinde yok).");
             break;
         case Scheduler::CreateResult::Collision:
             log("Bu saatte bu çalışan için çakışan randevu var.");
