@@ -1,0 +1,10 @@
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/CMakeFiles/rebuild_cache.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/CMakeFiles/edit_cache.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/lib/CMakeFiles/rebuild_cache.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/lib/CMakeFiles/edit_cache.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/lib/CMakeFiles/barber_core.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/lib/CMakeFiles/barber_core_autogen.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/project/CMakeFiles/rebuild_cache.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/project/CMakeFiles/edit_cache.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/project/CMakeFiles/BarberShopApp.dir
+/home/maynafiesta/Desktop/oopBerber/BarberShopManager/cmake-build-cpp/project/CMakeFiles/BarberShopApp_autogen.dir

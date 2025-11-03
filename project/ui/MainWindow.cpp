@@ -29,7 +29,7 @@ void MainWindow::buildUi() {
     central = new QWidget(this);
     auto* v = new QVBoxLayout(central);
 
-    // Üst şerit (demo + tarih/saat + oluştur)
+    // Üst şerit (demo + tarih/saat + oluştur + iptal)
     auto* top = new QHBoxLayout();
     btnLoadDemo   = new QPushButton("Demo veriyi yükle", central);
 
@@ -41,6 +41,7 @@ void MainWindow::buildUi() {
     timeEdit->setDisplayFormat("HH:mm");
 
     btnCreateAppt = new QPushButton("Seçili çalışan + hizmet ile randevu", central);
+    btnCancelAppt = new QPushButton("Seçili randevuyu iptal et", central); // yeni
 
     top->addWidget(btnLoadDemo);
     top->addSpacing(12);
@@ -51,6 +52,7 @@ void MainWindow::buildUi() {
     top->addWidget(timeEdit);
     top->addSpacing(12);
     top->addWidget(btnCreateAppt);
+    top->addWidget(btnCancelAppt); // yeni
     top->addStretch(1);
 
     // Orta tablolar (çalışanlar ve hizmetler)
@@ -81,6 +83,7 @@ void MainWindow::buildUi() {
     tblAppointments->verticalHeader()->setVisible(false);
     tblAppointments->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tblAppointments->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tblAppointments->setSelectionMode(QAbstractItemView::SingleSelection);
 
     // Alt log
     txtLog = new QPlainTextEdit(central);
@@ -97,6 +100,7 @@ void MainWindow::buildUi() {
 
     connect(btnLoadDemo,   &QPushButton::clicked, this, &MainWindow::onLoadDemo);
     connect(btnCreateAppt, &QPushButton::clicked, this, &MainWindow::onCreateAppointment);
+    connect(btnCancelAppt, &QPushButton::clicked, this, &MainWindow::onCancelAppointment); // yeni
 }
 
 void MainWindow::refreshTables() {
@@ -140,9 +144,9 @@ void MainWindow::refreshAppointments() {
         QString what = QString::fromStdString(a.getService().getName());
         QString st;
         switch (a.getStatus()) {
-            case Appointment::Status::Pending:  st = "Bekliyor"; break;
-            case Appointment::Status::Approved: st = "Onaylı";   break;
-            case Appointment::Status::Rejected: st = "Reddedildi"; break;
+            case Appointment::Status::Pending:  st = "Bekliyor";     break;
+            case Appointment::Status::Approved: st = "Onaylı";       break;
+            case Appointment::Status::Rejected: st = "Reddedildi";   break;
         }
         QString price = QString::number(a.getTotalPrice(), 'f', 2);
 
@@ -166,6 +170,11 @@ int MainWindow::selectedEmployeeRow() const {
 
 int MainWindow::selectedServiceRow() const {
     auto sel = tblServices->selectionModel()->selectedRows();
+    return sel.isEmpty() ? -1 : sel.front().row();
+}
+
+int MainWindow::selectedAppointmentRow() const {
+    auto sel = tblAppointments->selectionModel()->selectedRows();
     return sel.isEmpty() ? -1 : sel.front().row();
 }
 
@@ -201,7 +210,7 @@ void MainWindow::onLoadDemo() {
 
     refreshTables();
     refreshAppointments();
-    log("Demo yüklendi. Tarih/Saat seç, bir çalışan + bir hizmet seç ve randevu oluştur.");
+    log("Demo yüklendi. Randevu oluşturup sonra tablodan seçerek iptal edebilirsin.");
 }
 
 void MainWindow::onCreateAppointment() {
@@ -252,5 +261,26 @@ void MainWindow::onCreateAppointment() {
         case Scheduler::CreateResult::Collision:
             log("Bu saatte bu çalışan için çakışan randevu var.");
             break;
+    }
+}
+
+void MainWindow::onCancelAppointment() {
+    const int arow = selectedAppointmentRow();
+    if (arow < 0) { log("İptal etmek için randevu tablosundan bir satır seç."); return; }
+
+    // Kullanıcıdan emin misin? soralım
+    const auto reply = QMessageBox::question(
+        this, "Randevu İptali",
+        "Seçili randevuyu iptal etmek istediğinize emin misiniz?",
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) return;
+
+    const bool ok = salon.removeAppointmentAt(static_cast<std::size_t>(arow));
+    if (ok) {
+        log("Randevu iptal edildi.");
+        refreshAppointments();
+    } else {
+        log("Randevu iptali başarısız (geçersiz indeks).");
     }
 }
