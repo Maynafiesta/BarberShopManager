@@ -29,7 +29,7 @@ void MainWindow::buildUi() {
     central = new QWidget(this);
     auto* v = new QVBoxLayout(central);
 
-    // Üst şerit (demo + tarih/saat + oluştur + iptal)
+    // Üst şerit (demo + tarih/saat + oluştur)
     auto* top = new QHBoxLayout();
     btnLoadDemo   = new QPushButton("Demo veriyi yükle", central);
 
@@ -41,7 +41,6 @@ void MainWindow::buildUi() {
     timeEdit->setDisplayFormat("HH:mm");
 
     btnCreateAppt = new QPushButton("Seçili çalışan + hizmet ile randevu", central);
-    btnCancelAppt = new QPushButton("Seçili randevuyu iptal et", central); // yeni
 
     top->addWidget(btnLoadDemo);
     top->addSpacing(12);
@@ -52,7 +51,6 @@ void MainWindow::buildUi() {
     top->addWidget(timeEdit);
     top->addSpacing(12);
     top->addWidget(btnCreateAppt);
-    top->addWidget(btnCancelAppt); // yeni
     top->addStretch(1);
 
     // Orta tablolar (çalışanlar ve hizmetler)
@@ -85,6 +83,14 @@ void MainWindow::buildUi() {
     tblAppointments->setSelectionBehavior(QAbstractItemView::SelectRows);
     tblAppointments->setSelectionMode(QAbstractItemView::SingleSelection);
 
+    // Randevu aksiyonları
+    auto* actions = new QHBoxLayout();
+    btnReject = new QPushButton("Seçileni Reddet", central);
+    btnDelete = new QPushButton("Seçileni Sil", central);
+    actions->addWidget(btnReject);
+    actions->addWidget(btnDelete);
+    actions->addStretch(1);
+
     // Alt log
     txtLog = new QPlainTextEdit(central);
     txtLog->setReadOnly(true);
@@ -94,13 +100,15 @@ void MainWindow::buildUi() {
     v->addLayout(mid);
     v->addWidget(new QLabel("Randevular:", central));
     v->addWidget(tblAppointments);
+    v->addLayout(actions);
     v->addWidget(txtLog);
 
     setCentralWidget(central);
 
     connect(btnLoadDemo,   &QPushButton::clicked, this, &MainWindow::onLoadDemo);
     connect(btnCreateAppt, &QPushButton::clicked, this, &MainWindow::onCreateAppointment);
-    connect(btnCancelAppt, &QPushButton::clicked, this, &MainWindow::onCancelAppointment); // yeni
+    connect(btnReject,     &QPushButton::clicked, this, &MainWindow::onRejectSelected);
+    connect(btnDelete,     &QPushButton::clicked, this, &MainWindow::onDeleteSelected);
 }
 
 void MainWindow::refreshTables() {
@@ -144,9 +152,9 @@ void MainWindow::refreshAppointments() {
         QString what = QString::fromStdString(a.getService().getName());
         QString st;
         switch (a.getStatus()) {
-            case Appointment::Status::Pending:  st = "Bekliyor";     break;
-            case Appointment::Status::Approved: st = "Onaylı";       break;
-            case Appointment::Status::Rejected: st = "Reddedildi";   break;
+            case Appointment::Status::Pending:  st = "Bekliyor"; break;
+            case Appointment::Status::Approved: st = "Onaylı";   break;
+            case Appointment::Status::Rejected: st = "Reddedildi"; break;
         }
         QString price = QString::number(a.getTotalPrice(), 'f', 2);
 
@@ -210,7 +218,7 @@ void MainWindow::onLoadDemo() {
 
     refreshTables();
     refreshAppointments();
-    log("Demo yüklendi. Randevu oluşturup sonra tablodan seçerek iptal edebilirsin.");
+    log("Demo yüklendi. Tarih/Saat seç, bir çalışan + bir hizmet seç ve randevu oluştur.");
 }
 
 void MainWindow::onCreateAppointment() {
@@ -264,23 +272,30 @@ void MainWindow::onCreateAppointment() {
     }
 }
 
-void MainWindow::onCancelAppointment() {
-    const int arow = selectedAppointmentRow();
-    if (arow < 0) { log("İptal etmek için randevu tablosundan bir satır seç."); return; }
-
-    // Kullanıcıdan emin misin? soralım
-    const auto reply = QMessageBox::question(
-        this, "Randevu İptali",
-        "Seçili randevuyu iptal etmek istediğinize emin misiniz?",
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-
-    if (reply != QMessageBox::Yes) return;
-
-    const bool ok = salon.removeAppointmentAt(static_cast<std::size_t>(arow));
-    if (ok) {
-        log("Randevu iptal edildi.");
+void MainWindow::onRejectSelected() {
+    const int row = selectedAppointmentRow();
+    if (row < 0) { log("Önce randevu seç."); return; }
+    if (salon.rejectAppointmentAt(static_cast<size_t>(row))) {
+        log("Randevu reddedildi.");
         refreshAppointments();
     } else {
-        log("Randevu iptali başarısız (geçersiz indeks).");
+        log("Randevu reddedilemedi (geçersiz indeks).");
+    }
+}
+
+void MainWindow::onDeleteSelected() {
+    const int row = selectedAppointmentRow();
+    if (row < 0) { log("Önce randevu seç."); return; }
+
+    const auto ret = QMessageBox::question(this, "Sil",
+        "Seçili randevuyu kalıcı olarak silmek istiyor musun?",
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (ret != QMessageBox::Yes) return;
+
+    if (salon.removeAppointmentAt(static_cast<size_t>(row))) {
+        log("Randevu silindi.");
+        refreshAppointments();
+    } else {
+        log("Randevu silinemedi (geçersiz indeks).");
     }
 }

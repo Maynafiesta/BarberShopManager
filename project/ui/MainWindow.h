@@ -26,7 +26,8 @@ public:
 private slots:
     void onLoadDemo();
     void onCreateAppointment();
-    void onCancelAppointment();          // yeni
+    void onRejectSelected();          // yeni
+    void onDeleteSelected();          // yeni
 
 private:
     void buildUi();
@@ -36,7 +37,7 @@ private:
 
     int selectedEmployeeRow() const;
     int selectedServiceRow() const;
-    int selectedAppointmentRow() const;  // yeni
+    int selectedAppointmentRow() const;   // yeni
 
 private:
     Ui::MainWindow* ui{nullptr};
@@ -48,12 +49,13 @@ private:
 
     QPushButton*    btnLoadDemo{nullptr};
     QPushButton*    btnCreateAppt{nullptr};
-    QPushButton*    btnCancelAppt{nullptr};     // yeni
+    QPushButton*    btnReject{nullptr};   // yeni
+    QPushButton*    btnDelete{nullptr};   // yeni
+
     QPlainTextEdit* txtLog{nullptr};
     QTimeEdit*      timeEdit{nullptr};
     QDateEdit*      dateEdit{nullptr};
 
-    // iş verisi
     Salon salon{"Merkez Şube"};
     std::vector<Customer> customers;
     Scheduler scheduler;

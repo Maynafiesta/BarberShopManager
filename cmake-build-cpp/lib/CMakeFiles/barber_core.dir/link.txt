@@ -1,2 +1,0 @@
-/usr/bin/ar qc libbarber_core.a  CMakeFiles/barber_core.dir/barber_core_autogen/mocs_compilation.cpp.o CMakeFiles/barber_core.dir/src/Person.cpp.o CMakeFiles/barber_core.dir/src/Customer.cpp.o CMakeFiles/barber_core.dir/src/Employee.cpp.o CMakeFiles/barber_core.dir/src/TimeSlot.cpp.o CMakeFiles/barber_core.dir/src/Service.cpp.o CMakeFiles/barber_core.dir/src/Appointment.cpp.o CMakeFiles/barber_core.dir/src/Salon.cpp.o CMakeFiles/barber_core.dir/src/Scheduler.cpp.o CMakeFiles/barber_core.dir/src/InMemoryRepository.cpp.o
-/usr/bin/ranlib libbarber_core.a

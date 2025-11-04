@@ -19,16 +19,13 @@ public:
     void addService(const Service& s)   { m_services.push_back(s); }
     void addAppointment(const Appointment& a) { m_appointments.push_back(a); }
 
-    // yeni: randevu silme
-    bool removeAppointmentAt(std::size_t index) {
-        if (index >= m_appointments.size()) return false;
-        m_appointments.erase(m_appointments.begin() + static_cast<std::ptrdiff_t>(index));
-        return true;
-    }
-
     const std::vector<Employee>&    getEmployees() const noexcept { return m_employees; }
     const std::vector<Service>&     getServices()  const noexcept { return m_services; }
     const std::vector<Appointment>& getAppointments() const noexcept { return m_appointments; }
+
+    // --- yeni: randevu yönetimi
+    bool rejectAppointmentAt(size_t idx);      // durumu Reddedildi yapar
+    bool removeAppointmentAt(size_t idx);      // listeden siler
 
 private:
     std::string m_name;
