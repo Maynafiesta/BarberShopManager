@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.15)
 
 project(BarberShopManager LANGUAGES CXX)
 
@@ -39,3 +39,4 @@ endif()
 
 add_subdirectory(lib)
 add_subdirectory(project)
+
