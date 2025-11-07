@@ -26,8 +26,12 @@ public:
 private slots:
     void onLoadDemo();
     void onCreateAppointment();
-    void onRejectSelected();          // yeni
-    void onDeleteSelected();          // yeni
+    void onRejectSelected();
+    void onDeleteSelected();
+
+    // yeni: kalıcılık
+    void onSaveJson();
+    void onLoadJson();
 
 private:
     void buildUi();
@@ -37,7 +41,11 @@ private:
 
     int selectedEmployeeRow() const;
     int selectedServiceRow() const;
-    int selectedAppointmentRow() const;   // yeni
+    int selectedAppointmentRow() const;
+
+    // yeni: JSON serileştirme yardımcıları
+    QByteArray serializeSalonToJson() const;
+    bool       deserializeSalonFromJson(const QByteArray& data);
 
 private:
     Ui::MainWindow* ui{nullptr};
@@ -49,14 +57,17 @@ private:
 
     QPushButton*    btnLoadDemo{nullptr};
     QPushButton*    btnCreateAppt{nullptr};
-    QPushButton*    btnReject{nullptr};   // yeni
-    QPushButton*    btnDelete{nullptr};   // yeni
+    QPushButton*    btnReject{nullptr};
+    QPushButton*    btnDelete{nullptr};
+    QPushButton*    btnSave{nullptr};      // yeni
+    QPushButton*    btnLoad{nullptr};      // yeni
 
     QPlainTextEdit* txtLog{nullptr};
     QTimeEdit*      timeEdit{nullptr};
     QDateEdit*      dateEdit{nullptr};
 
+    // iş verisi
     Salon salon{"Merkez Şube"};
-    std::vector<Customer> customers;
+    std::vector<Customer> customers; // basit MVP: tek müşteri ile ilerliyoruz (customers.front())
     Scheduler scheduler;
 };

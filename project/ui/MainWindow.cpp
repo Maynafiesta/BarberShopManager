@@ -14,6 +14,13 @@
 #include <QMessageBox>
 #include <QLabel>
 
+// JSON / Dosya
+#include <QFile>
+#include <QFileDialog>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
@@ -91,6 +98,14 @@ void MainWindow::buildUi() {
     actions->addWidget(btnDelete);
     actions->addStretch(1);
 
+    // Kalıcılık butonları (kaydet/yükle)
+    auto* persist = new QHBoxLayout();
+    btnSave = new QPushButton("JSON’a Kaydet", central);
+    btnLoad = new QPushButton("JSON’dan Yükle", central);
+    persist->addWidget(btnSave);
+    persist->addWidget(btnLoad);
+    persist->addStretch(1);
+
     // Alt log
     txtLog = new QPlainTextEdit(central);
     txtLog->setReadOnly(true);
@@ -101,6 +116,7 @@ void MainWindow::buildUi() {
     v->addWidget(new QLabel("Randevular:", central));
     v->addWidget(tblAppointments);
     v->addLayout(actions);
+    v->addLayout(persist);
     v->addWidget(txtLog);
 
     setCentralWidget(central);
@@ -109,6 +125,9 @@ void MainWindow::buildUi() {
     connect(btnCreateAppt, &QPushButton::clicked, this, &MainWindow::onCreateAppointment);
     connect(btnReject,     &QPushButton::clicked, this, &MainWindow::onRejectSelected);
     connect(btnDelete,     &QPushButton::clicked, this, &MainWindow::onDeleteSelected);
+
+    connect(btnSave,       &QPushButton::clicked, this, &MainWindow::onSaveJson);
+    connect(btnLoad,       &QPushButton::clicked, this, &MainWindow::onLoadJson);
 }
 
 void MainWindow::refreshTables() {
@@ -298,4 +317,253 @@ void MainWindow::onDeleteSelected() {
     } else {
         log("Randevu silinemedi (geçersiz indeks).");
     }
+}
+
+/* ===================== JSON Kalıcılık ===================== */
+
+void MainWindow::onSaveJson() {
+    const QString path = QFileDialog::getSaveFileName(this, "JSON'a Kaydet", "salon.json", "JSON (*.json)");
+    if (path.isEmpty()) return;
+
+    const QByteArray data = serializeSalonToJson();
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly)) {
+        log("Dosya açılamadı: " + path);
+        return;
+    }
+    f.write(data);
+    f.close();
+    log("Kaydedildi: " + path);
+}
+
+void MainWindow::onLoadJson() {
+    const QString path = QFileDialog::getOpenFileName(this, "JSON'dan Yükle", "", "JSON (*.json)");
+    if (path.isEmpty()) return;
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        log("Dosya açılamadı: " + path);
+        return;
+    }
+    const QByteArray data = f.readAll();
+    f.close();
+
+    if (deserializeSalonFromJson(data)) {
+        refreshTables();
+        refreshAppointments();
+        log("Yüklendi: " + path);
+    } else {
+        log("JSON yüklenemedi: " + path);
+    }
+}
+
+QByteArray MainWindow::serializeSalonToJson() const {
+    // employees
+    QJsonArray employees;
+    const auto& emps = salon.getEmployees();
+    for (const auto& e : emps) {
+        QJsonObject obj;
+        obj["name"]  = QString::fromStdString(e.getName());
+        obj["phone"] = QString::fromStdString(e.getPhone());
+
+        QJsonArray skills;
+        for (const auto& s : e.getSkills())
+            skills.push_back(QString::fromStdString(s));
+        obj["skills"] = skills;
+
+        QJsonArray avail;
+        for (const auto& t : e.getAvailability()) {
+            QJsonObject to;
+            to["startEpoch"] = static_cast<qint64>(t.startEpoch);
+            to["duration"]   = t.durationMinutes;
+            avail.push_back(to);
+        }
+        obj["availability"] = avail;
+
+        employees.push_back(obj);
+    }
+
+    // services
+    QJsonArray services;
+    const auto& svcs = salon.getServices();
+    for (const auto& s : svcs) {
+        QJsonObject so;
+        so["name"]     = QString::fromStdString(s.getName());
+        so["duration"] = s.getDurationMinutes();
+        so["price"]    = s.getPrice();
+        services.push_back(so);
+    }
+
+    // appointments (employee/service index ile referanslayacağız)
+    // employee* → index map’i kur
+    QHash<const Employee*, int> empIndex;
+    for (int i = 0; i < employees.size(); ++i) {
+        empIndex.insert(&emps[static_cast<size_t>(i)], i);
+    }
+    QJsonArray apps;
+    const auto& aList = salon.getAppointments();
+    for (const auto& a : aList) {
+        QJsonObject ao;
+        ao["startEpoch"] = static_cast<qint64>(a.getSlot().startEpoch);
+        ao["duration"]   = a.getSlot().durationMinutes;
+
+        // employee index
+        int ei = -1;
+        if (a.getEmployee()) {
+            auto it = empIndex.find(a.getEmployee());
+            if (it != empIndex.end()) ei = it.value();
+        }
+        ao["employeeIndex"] = ei;
+
+        // service index: adına bakarak bul (küçük MVP)
+        int si = -1;
+        for (int i = 0; i < services.size(); ++i) {
+            if (services[i].toObject().value("name").toString() ==
+                QString::fromStdString(a.getService().getName())) { si = i; break; }
+        }
+        ao["serviceIndex"] = si;
+
+        // status
+        QString st = "Pending";
+        switch (a.getStatus()) {
+            case Appointment::Status::Pending:  st = "Pending"; break;
+            case Appointment::Status::Approved: st = "Approved"; break;
+            case Appointment::Status::Rejected: st = "Rejected"; break;
+        }
+        ao["status"] = st;
+
+        // price (service.price’ı zaten saklıyoruz, yine de yaz)
+        ao["price"] = a.getTotalPrice();
+
+        apps.push_back(ao);
+    }
+
+    // salon / working hours
+    QJsonObject working;
+    working["startEpoch"] = static_cast<qint64>(salon.getWorkingHours().startEpoch);
+    working["duration"]   = salon.getWorkingHours().durationMinutes;
+
+    // customers (MVP: tek müşteri)
+    QJsonArray custs;
+    if (!customers.empty()) {
+        QJsonObject c;
+        c["name"]  = QString::fromStdString(customers.front().getName());
+        c["phone"] = QString::fromStdString(customers.front().getPhone());
+        custs.push_back(c);
+    }
+
+    QJsonObject root;
+    root["name"]         = QString::fromStdString(salon.getName());
+    root["workingHours"] = working;
+    root["employees"]    = employees;
+    root["services"]     = services;
+    root["appointments"] = apps;
+    root["customers"]    = custs;
+
+    return QJsonDocument(root).toJson(QJsonDocument::Indented);
+}
+
+bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
+    QJsonParseError err{};
+    const auto doc = QJsonDocument::fromJson(data, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) return false;
+
+    const auto root = doc.object();
+
+    // reset salon
+    salon = Salon(root.value("name").toString("Salon").toStdString());
+
+    // working hours
+    const auto wh = root.value("workingHours").toObject();
+    TimeSlot whs;
+    whs.startEpoch     = static_cast<std::time_t>(wh.value("startEpoch").toVariant().toLongLong());
+    whs.durationMinutes= wh.value("duration").toInt(12*60);
+    salon.setWorkingHours(whs);
+
+    // employees
+    std::vector<Employee> empsTmp;
+    const auto employees = root.value("employees").toArray();
+    empsTmp.reserve(static_cast<size_t>(employees.size()));
+    for (const auto& v : employees) {
+        const auto e = v.toObject();
+        Employee emp(e.value("name").toString().toStdString(),
+                     e.value("phone").toString().toStdString());
+
+        for (const auto& sv : e.value("skills").toArray())
+            emp.addSkill(sv.toString().toStdString());
+
+        for (const auto& av : e.value("availability").toArray()) {
+            const auto ao = av.toObject();
+            TimeSlot ts;
+            ts.startEpoch      = static_cast<std::time_t>(ao.value("startEpoch").toVariant().toLongLong());
+            ts.durationMinutes = ao.value("duration").toInt();
+            emp.addAvailability(ts);
+        }
+        empsTmp.push_back(emp);
+    }
+    for (const auto& e : empsTmp) salon.addEmployee(e);
+
+    // services
+    std::vector<Service> svcsTmp;
+    const auto services = root.value("services").toArray();
+    svcsTmp.reserve(static_cast<size_t>(services.size()));
+    for (const auto& v : services) {
+        const auto s = v.toObject();
+        svcsTmp.emplace_back(
+            s.value("name").toString().toStdString(),
+            s.value("duration").toInt(),
+            s.value("price").toDouble()
+        );
+    }
+    for (const auto& s : svcsTmp) salon.addService(s);
+
+    // customer (MVP: en az 1 müşteri bulunsun)
+    customers.clear();
+    const auto custs = root.value("customers").toArray();
+    if (!custs.isEmpty()) {
+        const auto c = custs.first().toObject();
+        customers.emplace_back(c.value("name").toString("Tarık").toStdString(),
+                               c.value("phone").toString("0555 555 55 55").toStdString());
+    } else {
+        customers.emplace_back("Tarık", "0555 555 55 55");
+    }
+
+    // appointments
+    const auto apps = root.value("appointments").toArray();
+    for (const auto& v : apps) {
+        const auto a = v.toObject();
+
+        const int ei = a.value("employeeIndex").toInt(-1);
+        const int si = a.value("serviceIndex").toInt(-1);
+
+        const Employee* eptr = nullptr;
+        const Service*  sptr = nullptr;
+
+        if (ei >= 0 && ei < employees.size())
+            eptr = &salon.getEmployees()[static_cast<size_t>(ei)];
+
+        if (si >= 0 && si < services.size()) {
+            const auto name = services[si].toObject().value("name").toString();
+            // isme göre bul
+            for (const auto& s : salon.getServices()) {
+                if (QString::fromStdString(s.getName()) == name) { sptr = &s; break; }
+            }
+        }
+
+        if (!eptr || !sptr) continue; // veri tutarsızsa atla
+
+        TimeSlot ts;
+        ts.startEpoch      = static_cast<std::time_t>(a.value("startEpoch").toVariant().toLongLong());
+        ts.durationMinutes = a.value("duration").toInt();
+
+        Appointment made(&customers.front(), eptr, *sptr, ts);
+
+        const auto st = a.value("status").toString("Approved");
+        if (st == "Rejected")      made.reject();
+        else /*Pending/Approved*/  made.approve();
+
+        salon.addAppointment(made);
+    }
+
+    return true;
 }
