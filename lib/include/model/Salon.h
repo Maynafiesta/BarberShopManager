@@ -19,6 +19,9 @@ public:
     void addService(const Service& s)   { m_services.push_back(s); }
     void addAppointment(const Appointment& a) { m_appointments.push_back(a); }
 
+    bool addSkillToEmployee(size_t idx, const std::string& skill);
+    bool addAvailabilityToEmployee(size_t idx, const TimeSlot& slot);
+
     const std::vector<Employee>&    getEmployees() const noexcept { return m_employees; }
     const std::vector<Service>&     getServices()  const noexcept { return m_services; }
     const std::vector<Appointment>& getAppointments() const noexcept { return m_appointments; }
