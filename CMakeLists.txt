@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.15)
 
 project(BarberShopManager LANGUAGES CXX)
 
+option(BARBER_BUILD_GUI "Build the Qt GUI application" ON)
+option(BARBER_BUILD_TESTS "Build core library tests" ON)
+
 # default build type
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -19,24 +22,37 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   add_compile_options(/W4)
 endif()
 
-# Qt auto-magic (etki alanı: tüm alt dizinler)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
+# Qt GUI isteğe bağlı: sadece istenirse bul ve ekle
+if(BARBER_BUILD_GUI)
+  # Qt auto-magic (etki alanı: tüm alt dizinler)
+  set(CMAKE_AUTOMOC ON)
+  set(CMAKE_AUTOUIC ON)
+  set(CMAKE_AUTORCC ON)
 
-# Qt'yi bul: önce Qt6, yoksa Qt5 (Ubuntu varsayılan yolu ipucu olarak eklenir)
-find_package(Qt6 COMPONENTS Widgets QUIET)
-if(Qt6_FOUND)
-  set(QT_PACKAGE Qt6)
-else()
-  if(NOT DEFINED Qt5_DIR)
-    # Ubuntu 20.04/22.04 tipik konum:
-    set(Qt5_DIR "/usr/lib/x86_64-linux-gnu/cmake/Qt5" CACHE PATH "Path to Qt5Config.cmake")
+  # Qt'yi bul: önce Qt6, yoksa Qt5 (Ubuntu varsayılan yolu ipucu olarak eklenir)
+  find_package(Qt6 COMPONENTS Widgets QUIET)
+  if(Qt6_FOUND)
+    set(QT_PACKAGE Qt6)
+  else()
+    if(NOT DEFINED Qt5_DIR)
+      # Ubuntu 20.04/22.04 tipik konum:
+      set(Qt5_DIR "/usr/lib/x86_64-linux-gnu/cmake/Qt5" CACHE PATH "Path to Qt5Config.cmake")
+    endif()
+    find_package(Qt5 REQUIRED COMPONENTS Widgets)
+    set(QT_PACKAGE Qt5)
   endif()
-  find_package(Qt5 REQUIRED COMPONENTS Widgets)
-  set(QT_PACKAGE Qt5)
 endif()
 
 add_subdirectory(lib)
-add_subdirectory(project)
+
+if(BARBER_BUILD_GUI)
+  add_subdirectory(project)
+else()
+  message(STATUS "BARBER_BUILD_GUI=OFF: Qt GUI skipped")
+endif()
+
+if(BARBER_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
 
