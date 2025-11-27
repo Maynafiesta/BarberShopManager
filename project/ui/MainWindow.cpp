@@ -33,6 +33,18 @@
 #include <algorithm>
 #include <set>
 
+namespace {
+int safeToInt(const QVariant& var, bool& ok) {
+    const int val = var.toInt(&ok);
+    return ok ? val : -1;
+}
+
+int safeToInt(const QJsonValue& value, bool& ok) {
+    const int val = value.toInt(&ok);
+    return ok ? val : -1;
+}
+}
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -524,9 +536,8 @@ void MainWindow::onCreateAppointment() {
     const int empIdx      = [&]() {
         if (!nameItem) return -1;
 
-        bool ok       = false;
-        const int val = nameItem->data(Qt::UserRole).toInt(&ok);
-        return ok ? val : -1;
+        bool ok = false;
+        return safeToInt(nameItem->data(Qt::UserRole), ok);
     }();
     if (empIdx < 0 || empIdx >= static_cast<int>(salonController.employees().size())) {
         log("Seçili çalışan bulunamadı.");
@@ -943,8 +954,8 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
             const auto a = av.toObject();
 
             bool eiOk = false, siOk = false;
-            const int ei = a.value("employeeIndex").toInt(&eiOk);
-            const int si = a.value("serviceIndex").toInt(&siOk);
+            const int ei = safeToInt(a.value("employeeIndex"), eiOk);
+            const int si = safeToInt(a.value("serviceIndex"), siOk);
 
             const auto& empList = salon.getEmployees();
             const auto& svcList = salon.getServices();
