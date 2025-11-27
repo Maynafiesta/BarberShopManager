@@ -9,6 +9,9 @@ class QPlainTextEdit;
 class QTimeEdit;
 class QDateEdit;
 class QComboBox;
+class QTabWidget;
+class QLineEdit;
+class QSpinBox;
 
 #include "model/Salon.h"
 #include "model/Customer.h"
@@ -33,6 +36,13 @@ private slots:
     void onRejectSelected();
     void onDeleteSelected();
 
+    // yönetici işlemleri
+    void onAddSalon();
+    void onAddEmployee();
+    void onAddService();
+    void onAddSkillToEmployee();
+    void onAddAvailabilityToEmployee();
+
     // yeni: kalıcılık
     void onSaveJson();
     void onLoadJson();
@@ -42,6 +52,7 @@ private:
     void refreshSalonCombo();
     void refreshTables();
     void refreshAppointments();
+    void refreshAdminCombos();
     void log(const QString& msg);
 
     Salon* currentSalon();
@@ -59,6 +70,8 @@ private:
     Ui::MainWindow* ui{nullptr};
 
     QWidget*        central{nullptr};
+    QTabWidget*     roleTabs{nullptr};
+
     QTableWidget*   tblEmployees{nullptr};
     QTableWidget*   tblServices{nullptr};
     QTableWidget*   tblAppointments{nullptr};
@@ -70,6 +83,26 @@ private:
     QPushButton*    btnDelete{nullptr};
     QPushButton*    btnSave{nullptr};      // yeni
     QPushButton*    btnLoad{nullptr};      // yeni
+
+    // yönetici paneli
+    QLineEdit*      edtSalonName{nullptr};
+    QTimeEdit*      edtSalonStart{nullptr};
+    QSpinBox*       spnSalonDuration{nullptr};
+
+    QLineEdit*      edtEmpName{nullptr};
+    QLineEdit*      edtEmpPhone{nullptr};
+    QLineEdit*      edtEmpSkills{nullptr};
+    QTimeEdit*      edtEmpAvailStart{nullptr};
+    QSpinBox*       spnEmpAvailDuration{nullptr};
+
+    QLineEdit*      edtServiceName{nullptr};
+    QSpinBox*       spnServiceDuration{nullptr};
+    QSpinBox*       spnServicePrice{nullptr};
+
+    QComboBox*      cmbEmployeeEdit{nullptr};
+    QLineEdit*      edtNewSkill{nullptr};
+    QTimeEdit*      edtNewAvailStart{nullptr};
+    QSpinBox*       spnNewAvailDuration{nullptr};
 
     QPlainTextEdit* txtLog{nullptr};
     QTimeEdit*      timeEdit{nullptr};

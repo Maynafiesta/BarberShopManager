@@ -13,6 +13,11 @@ public:
     void loadDemoData(const QDate& day);
 
     bool setActiveSalon(size_t idx);
+    void addSalon(const std::string& name, const TimeSlot& workingHours);
+    bool addEmployeeToActive(const Employee& e);
+    bool addServiceToActive(const Service& s);
+    bool addSkillToEmployee(size_t employeeIdx, const std::string& skill);
+    bool addAvailabilityToEmployee(size_t employeeIdx, const TimeSlot& slot);
     size_t activeSalonIndex() const noexcept { return m_activeSalon; }
 
     Salon*       currentSalon();

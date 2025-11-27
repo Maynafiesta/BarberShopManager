@@ -50,6 +50,35 @@ bool SalonController::setActiveSalon(size_t idx) {
     return true;
 }
 
+void SalonController::addSalon(const std::string& name, const TimeSlot& workingHours) {
+    Salon s(name);
+    s.setWorkingHours(workingHours);
+    m_salons.push_back(s);
+    m_activeSalon = m_salons.size() - 1;
+}
+
+bool SalonController::addEmployeeToActive(const Employee& e) {
+    if (m_salons.empty()) return false;
+    active().addEmployee(e);
+    return true;
+}
+
+bool SalonController::addServiceToActive(const Service& s) {
+    if (m_salons.empty()) return false;
+    active().addService(s);
+    return true;
+}
+
+bool SalonController::addSkillToEmployee(size_t employeeIdx, const std::string& skill) {
+    if (m_salons.empty()) return false;
+    return active().addSkillToEmployee(employeeIdx, skill);
+}
+
+bool SalonController::addAvailabilityToEmployee(size_t employeeIdx, const TimeSlot& slot) {
+    if (m_salons.empty()) return false;
+    return active().addAvailabilityToEmployee(employeeIdx, slot);
+}
+
 bool SalonController::rejectAppointmentAt(size_t idx) {
     if (m_salons.empty()) return false;
     return active().rejectAppointmentAt(idx);
