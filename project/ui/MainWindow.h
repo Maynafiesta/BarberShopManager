@@ -8,12 +8,15 @@ class QPushButton;
 class QPlainTextEdit;
 class QTimeEdit;
 class QDateEdit;
+class QComboBox;
 
 #include "model/Salon.h"
 #include "model/Customer.h"
 #include "model/Employee.h"
 #include "model/Service.h"
 #include "core/Scheduler.h"
+#include "controllers/AppointmentController.h"
+#include "controllers/SalonController.h"
 
 namespace Ui { class MainWindow; }
 
@@ -25,6 +28,7 @@ public:
 
 private slots:
     void onLoadDemo();
+    void onSalonChanged(int index);
     void onCreateAppointment();
     void onRejectSelected();
     void onDeleteSelected();
@@ -35,9 +39,13 @@ private slots:
 
 private:
     void buildUi();
+    void refreshSalonCombo();
     void refreshTables();
     void refreshAppointments();
     void log(const QString& msg);
+
+    Salon* currentSalon();
+    const Salon* currentSalon() const;
 
     int selectedEmployeeRow() const;
     int selectedServiceRow() const;
@@ -56,6 +64,7 @@ private:
     QTableWidget*   tblAppointments{nullptr};
 
     QPushButton*    btnLoadDemo{nullptr};
+    QComboBox*      cmbSalons{nullptr};
     QPushButton*    btnCreateAppt{nullptr};
     QPushButton*    btnReject{nullptr};
     QPushButton*    btnDelete{nullptr};
@@ -67,7 +76,10 @@ private:
     QDateEdit*      dateEdit{nullptr};
 
     // iş verisi
-    Salon salon{"Merkez Şube"};
-    std::vector<Customer> customers; // basit MVP: tek müşteri ile ilerliyoruz (customers.front())
-    Scheduler scheduler;
+    std::vector<Salon>     salons;
+    std::vector<Customer>  customers; // basit MVP: tek müşteri ile ilerliyoruz (customers.front())
+    Scheduler              scheduler;
+
+    SalonController        salonController;
+    AppointmentController  appointmentController;
 };
