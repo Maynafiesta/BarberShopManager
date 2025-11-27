@@ -12,6 +12,7 @@ class QComboBox;
 class QTabWidget;
 class QLineEdit;
 class QSpinBox;
+class QListWidget;
 
 #include "model/Salon.h"
 #include "model/Customer.h"
@@ -53,6 +54,8 @@ private:
     void refreshTables();
     void refreshAppointments();
     void refreshAdminCombos();
+    void refreshEmployeeCandidates();
+    void refreshSkillPool();
     void log(const QString& msg);
 
     Salon* currentSalon();
@@ -87,11 +90,12 @@ private:
     // yönetici paneli
     QLineEdit*      edtSalonName{nullptr};
     QTimeEdit*      edtSalonStart{nullptr};
-    QSpinBox*       spnSalonDuration{nullptr};
+    QTimeEdit*      edtSalonEnd{nullptr};
 
     QLineEdit*      edtEmpName{nullptr};
     QLineEdit*      edtEmpPhone{nullptr};
-    QLineEdit*      edtEmpSkills{nullptr};
+    QComboBox*      cmbSalonForEmployee{nullptr};
+    QListWidget*    lstEmpSkills{nullptr};
     QTimeEdit*      edtEmpAvailStart{nullptr};
     QSpinBox*       spnEmpAvailDuration{nullptr};
 
@@ -100,7 +104,7 @@ private:
     QSpinBox*       spnServicePrice{nullptr};
 
     QComboBox*      cmbEmployeeEdit{nullptr};
-    QLineEdit*      edtNewSkill{nullptr};
+    QComboBox*      cmbSkillPool{nullptr};
     QTimeEdit*      edtNewAvailStart{nullptr};
     QSpinBox*       spnNewAvailDuration{nullptr};
 

@@ -20,6 +20,8 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QStringList>
+#include <QListWidget>
+#include <QItemSelectionModel>
 
 // JSON / Dosya
 #include <QFile>
@@ -29,6 +31,7 @@
 #include <QJsonArray>
 #include <QHash>
 #include <algorithm>
+#include <set>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -90,8 +93,8 @@ void MainWindow::buildUi() {
 
     // Orta tablolar (çalışanlar ve hizmetler)
     auto* mid = new QHBoxLayout();
-    tblEmployees = new QTableWidget(0, 2, customerTab);
-    tblEmployees->setHorizontalHeaderLabels({ "Çalışan", "Yetenekler" });
+    tblEmployees = new QTableWidget(0, 3, customerTab);
+    tblEmployees->setHorizontalHeaderLabels({ "Çalışan", "Ücret", "Yetenekler" });
     tblEmployees->horizontalHeader()->setStretchLastSection(true);
     tblEmployees->verticalHeader()->setVisible(false);
     tblEmployees->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -149,20 +152,23 @@ void MainWindow::buildUi() {
     edtSalonName     = new QLineEdit(gbSalon);
     edtSalonStart    = new QTimeEdit(QTime(9, 0), gbSalon);
     edtSalonStart->setDisplayFormat("HH:mm");
-    spnSalonDuration = new QSpinBox(gbSalon);
-    spnSalonDuration->setRange(30, 24 * 60);
-    spnSalonDuration->setValue(12 * 60);
+    edtSalonEnd      = new QTimeEdit(QTime(21, 0), gbSalon);
+    edtSalonEnd->setDisplayFormat("HH:mm");
     auto* btnAddSalon = new QPushButton("Salon Ekle", gbSalon);
     fSalon->addRow("Salon adı", edtSalonName);
     fSalon->addRow("Başlangıç (günlük)", edtSalonStart);
-    fSalon->addRow("Mesai (dk)", spnSalonDuration);
+    fSalon->addRow("Kapanış", edtSalonEnd);
     fSalon->addRow(btnAddSalon);
 
     auto* gbEmp = new QGroupBox("Çalışan ekle", adminTab);
     auto* fEmp  = new QFormLayout(gbEmp);
     edtEmpName  = new QLineEdit(gbEmp);
     edtEmpPhone = new QLineEdit(gbEmp);
-    edtEmpSkills = new QLineEdit(gbEmp);
+    cmbSalonForEmployee = new QComboBox(gbEmp);
+    cmbSalonForEmployee->setPlaceholderText("Salon seç");
+    cmbSalonForEmployee->setEnabled(false);
+    lstEmpSkills = new QListWidget(gbEmp);
+    lstEmpSkills->setSelectionMode(QAbstractItemView::NoSelection);
     edtEmpAvailStart = new QTimeEdit(QTime(10, 0), gbEmp);
     edtEmpAvailStart->setDisplayFormat("HH:mm");
     spnEmpAvailDuration = new QSpinBox(gbEmp);
@@ -171,7 +177,8 @@ void MainWindow::buildUi() {
     auto* btnAddEmp = new QPushButton("Çalışan Ekle", gbEmp);
     fEmp->addRow("Ad Soyad", edtEmpName);
     fEmp->addRow("Telefon", edtEmpPhone);
-    fEmp->addRow("Yetenekler (virgülle)", edtEmpSkills);
+    fEmp->addRow("Salon", cmbSalonForEmployee);
+    fEmp->addRow("Yetenek havuzu", lstEmpSkills);
     fEmp->addRow("Uygunluk başlangıç", edtEmpAvailStart);
     fEmp->addRow("Uygunluk süre (dk)", spnEmpAvailDuration);
     fEmp->addRow(btnAddEmp);
@@ -196,7 +203,8 @@ void MainWindow::buildUi() {
     auto* fEdit  = new QFormLayout(gbEdit);
     cmbEmployeeEdit   = new QComboBox(gbEdit);
     cmbEmployeeEdit->setPlaceholderText("Salon + çalışan seç");
-    edtNewSkill      = new QLineEdit(gbEdit);
+    cmbSkillPool     = new QComboBox(gbEdit);
+    cmbSkillPool->setPlaceholderText("Hizmet/yetenek seç");
     edtNewAvailStart = new QTimeEdit(QTime(12,0), gbEdit);
     edtNewAvailStart->setDisplayFormat("HH:mm");
     spnNewAvailDuration = new QSpinBox(gbEdit);
@@ -205,7 +213,7 @@ void MainWindow::buildUi() {
     auto* btnAddSkill = new QPushButton("Yetenek Ekle", gbEdit);
     auto* btnAddAvail = new QPushButton("Yeni Uygunluk Ekle", gbEdit);
     fEdit->addRow("Çalışan", cmbEmployeeEdit);
-    fEdit->addRow("Yeni yetenek", edtNewSkill);
+    fEdit->addRow("Yeni yetenek", cmbSkillPool);
     fEdit->addRow(btnAddSkill);
     fEdit->addRow("Uygunluk başlangıç", edtNewAvailStart);
     fEdit->addRow("Uygunluk süre (dk)", spnNewAvailDuration);
@@ -233,6 +241,9 @@ void MainWindow::buildUi() {
     connect(btnCreateAppt, &QPushButton::clicked, this, &MainWindow::onCreateAppointment);
     connect(btnReject,     &QPushButton::clicked, this, &MainWindow::onRejectSelected);
     connect(btnDelete,     &QPushButton::clicked, this, &MainWindow::onDeleteSelected);
+    connect(tblServices->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::refreshEmployeeCandidates);
+    connect(timeEdit, &QTimeEdit::timeChanged, this, &MainWindow::refreshEmployeeCandidates);
+    connect(dateEdit, &QDateEdit::dateChanged, this, &MainWindow::refreshEmployeeCandidates);
 
     connect(btnSave,       &QPushButton::clicked, this, &MainWindow::onSaveJson);
     connect(btnLoad,       &QPushButton::clicked, this, &MainWindow::onLoadJson);
@@ -243,27 +254,11 @@ void MainWindow::buildUi() {
     connect(btnAddSvc,   &QPushButton::clicked, this, &MainWindow::onAddService);
     connect(btnAddSkill, &QPushButton::clicked, this, &MainWindow::onAddSkillToEmployee);
     connect(btnAddAvail, &QPushButton::clicked, this, &MainWindow::onAddAvailabilityToEmployee);
+    connect(cmbSalonForEmployee, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::refreshSkillPool);
 }
 
 void MainWindow::refreshTables() {
     const auto* salon = currentSalon();
-
-    // Employees
-    const auto& emps = salonController.employees();
-    tblEmployees->setRowCount(static_cast<int>(emps.size()));
-    for (int i = 0; i < static_cast<int>(emps.size()); ++i) {
-        const auto& e = emps[static_cast<size_t>(i)];
-        auto* nameItem = new QTableWidgetItem(QString::fromStdString(e.getName()));
-        QString skills;
-        for (const auto& s : e.getSkills()) {
-            if (!skills.isEmpty()) skills += ", ";
-            skills += QString::fromStdString(s);
-        }
-        auto* skillItem = new QTableWidgetItem(skills);
-        tblEmployees->setItem(i, 0, nameItem);
-        tblEmployees->setItem(i, 1, skillItem);
-    }
-    tblEmployees->resizeColumnsToContents();
 
     // Services
     const auto& svcs = salonController.services();
@@ -275,6 +270,8 @@ void MainWindow::refreshTables() {
         tblServices->setItem(i, 2, new QTableWidgetItem(QString::number(s.getPrice(), 'f', 2)));
     }
     tblServices->resizeColumnsToContents();
+
+    refreshEmployeeCandidates();
 
     if (!salon) {
         tblAppointments->setRowCount(0);
@@ -310,23 +307,131 @@ void MainWindow::refreshAppointments() {
 }
 
 void MainWindow::refreshAdminCombos() {
-    if (!cmbEmployeeEdit) return;
-    cmbEmployeeEdit->blockSignals(true);
-    cmbEmployeeEdit->clear();
+    const auto& list = salonController.salons();
 
-    const auto* salon = currentSalon();
-    if (!salon) {
-        cmbEmployeeEdit->setEnabled(false);
-        cmbEmployeeEdit->blockSignals(false);
-        return;
+    if (cmbSalonForEmployee) {
+        cmbSalonForEmployee->blockSignals(true);
+        cmbSalonForEmployee->clear();
+        for (const auto& s : list)
+            cmbSalonForEmployee->addItem(QString::fromStdString(s.getName()));
+        cmbSalonForEmployee->setEnabled(!list.empty());
+        if (!list.empty())
+            cmbSalonForEmployee->setCurrentIndex(static_cast<int>(salonController.activeSalonIndex()));
+        cmbSalonForEmployee->blockSignals(false);
     }
 
-    const auto& emps = salonController.employees();
-    for (const auto& e : emps)
-        cmbEmployeeEdit->addItem(QString::fromStdString(e.getName()));
+    if (cmbEmployeeEdit) {
+        cmbEmployeeEdit->blockSignals(true);
+        cmbEmployeeEdit->clear();
 
-    cmbEmployeeEdit->setEnabled(!emps.empty());
-    cmbEmployeeEdit->blockSignals(false);
+        const auto* salon = currentSalon();
+        if (!salon) {
+            cmbEmployeeEdit->setEnabled(false);
+        } else {
+            const auto& emps = salonController.employees();
+            for (const auto& e : emps)
+                cmbEmployeeEdit->addItem(QString::fromStdString(e.getName()));
+
+            cmbEmployeeEdit->setEnabled(!emps.empty());
+        }
+        cmbEmployeeEdit->blockSignals(false);
+    }
+
+    refreshSkillPool();
+}
+
+void MainWindow::refreshSkillPool() {
+    auto gatherSkills = [&](const Salon& salon) {
+        std::set<std::string> out;
+        for (const auto& s : salon.getServices())
+            out.insert(s.getName());
+        return out;
+    };
+
+    const auto& allSalons = salonController.salons();
+    const int targetSalonIdx = cmbSalonForEmployee ? cmbSalonForEmployee->currentIndex() : -1;
+    const size_t idx = (targetSalonIdx >= 0 && static_cast<size_t>(targetSalonIdx) < allSalons.size())
+        ? static_cast<size_t>(targetSalonIdx)
+        : salonController.activeSalonIndex();
+
+    std::set<std::string> addSkills;
+    if (idx < allSalons.size())
+        addSkills = gatherSkills(allSalons[idx]);
+
+    if (lstEmpSkills) {
+        lstEmpSkills->clear();
+        for (const auto& s : addSkills) {
+            auto* item = new QListWidgetItem(QString::fromStdString(s), lstEmpSkills);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(Qt::Unchecked);
+        }
+        lstEmpSkills->setEnabled(!addSkills.empty());
+    }
+
+    std::set<std::string> editSkills;
+    if (const auto* salon = currentSalon())
+        editSkills = gatherSkills(*salon);
+
+    if (cmbSkillPool) {
+        cmbSkillPool->blockSignals(true);
+        cmbSkillPool->clear();
+        for (const auto& s : editSkills)
+            cmbSkillPool->addItem(QString::fromStdString(s));
+        cmbSkillPool->setEnabled(!editSkills.empty());
+        cmbSkillPool->blockSignals(false);
+    }
+}
+
+void MainWindow::refreshEmployeeCandidates() {
+    tblEmployees->setRowCount(0);
+    const auto* salon = currentSalon();
+    if (!salon) return;
+
+    const auto& svcs = salonController.services();
+    const int svcRow = selectedServiceRow();
+    if (svcRow < 0 || svcRow >= static_cast<int>(svcs.size())) return;
+
+    const auto& service = svcs[static_cast<size_t>(svcRow)];
+    const QDateTime startDt(dateEdit->date(), timeEdit->time(), Qt::LocalTime);
+    TimeSlot desired { static_cast<std::time_t>(startDt.toSecsSinceEpoch()), service.getDurationMinutes() };
+
+    if (!salon->getWorkingHours().contains(desired)) return;
+
+    const auto& emps = salonController.employees();
+    const auto& apps = salonController.appointments();
+    int row = 0;
+    for (size_t idx = 0; idx < emps.size(); ++idx) {
+        const auto& e = emps[idx];
+        const auto& skills = e.getSkills();
+        if (std::find(skills.begin(), skills.end(), service.getName()) == skills.end())
+            continue;
+
+        bool avail = false;
+        for (const auto& s : e.getAvailability()) {
+            if (s.contains(desired)) { avail = true; break; }
+        }
+        if (!avail) continue;
+
+        bool collision = false;
+        for (const auto& a : apps) {
+            if (a.getEmployee() == &e && a.getSlot().overlaps(desired)) { collision = true; break; }
+        }
+        if (collision) continue;
+
+        tblEmployees->insertRow(row);
+        auto* nameItem = new QTableWidgetItem(QString::fromStdString(e.getName()));
+        nameItem->setData(Qt::UserRole, static_cast<int>(idx));
+        tblEmployees->setItem(row, 0, nameItem);
+        tblEmployees->setItem(row, 1, new QTableWidgetItem(QString::number(service.getPrice(), 'f', 2)));
+        QString skillStr;
+        for (const auto& s : skills) {
+            if (!skillStr.isEmpty()) skillStr += ", ";
+            skillStr += QString::fromStdString(s);
+        }
+        tblEmployees->setItem(row, 2, new QTableWidgetItem(skillStr));
+        ++row;
+    }
+    tblEmployees->resizeColumnsToContents();
 }
 
 void MainWindow::log(const QString& msg) {
@@ -394,6 +499,8 @@ void MainWindow::onSalonChanged(int index) {
     appointmentController.setActiveSalon(currentSalon());
     refreshTables();
     refreshAppointments();
+    refreshEmployeeCandidates();
+    refreshSkillPool();
 
     const auto& list = salonController.salons();
     if (static_cast<size_t>(index) < list.size())
@@ -413,7 +520,14 @@ void MainWindow::onCreateAppointment() {
     const int srow = selectedServiceRow();
     if (srow < 0) { log("Lütfen bir hizmet seç."); return; }
 
-    const auto& employee = salonController.employees()[static_cast<size_t>(erow)];
+    const auto* nameItem = tblEmployees->item(erow, 0);
+    const int empIdx = nameItem ? nameItem->data(Qt::UserRole).toInt(-1) : -1;
+    if (empIdx < 0 || empIdx >= static_cast<int>(salonController.employees().size())) {
+        log("Seçili çalışan bulunamadı.");
+        return;
+    }
+
+    const auto& employee = salonController.employees()[static_cast<size_t>(empIdx)];
     const auto& service  = salonController.services()[static_cast<size_t>(srow)];
     const auto& customer = customers.front();
 
@@ -488,34 +602,55 @@ void MainWindow::onAddSalon() {
     }
 
     const QDate d = dateEdit->date();
-    const QTime t = edtSalonStart->time();
-    TimeSlot wh { static_cast<std::time_t>(QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
-                  spnSalonDuration->value() };
+    const QTime start = edtSalonStart->time();
+    const QTime end   = edtSalonEnd->time();
+    if (end <= start) {
+        log("Kapanış saati başlangıçtan sonra olmalı.");
+        return;
+    }
+    const int durationMinutes = static_cast<int>(start.secsTo(end) / 60);
+    TimeSlot wh { static_cast<std::time_t>(QDateTime(d, start, Qt::LocalTime).toSecsSinceEpoch()),
+                  durationMinutes };
 
     if (customers.empty())
         customers.emplace_back("Müşteri", "05xx xxx xx xx");
 
-    salonController.addSalon(name.toStdString(), wh);
+    if (!salonController.addSalon(name.toStdString(), wh)) {
+        log("Aynı isimde salon zaten var.");
+        return;
+    }
     refreshSalonCombo();
     appointmentController.setActiveSalon(currentSalon());
     refreshTables();
     refreshAppointments();
+    refreshSkillPool();
 
     log(QString("Salon eklendi ve aktif: %1").arg(name));
 }
 
 void MainWindow::onAddEmployee() {
-    if (!currentSalon()) { log("Önce salon ekle veya demo yükle."); return; }
-
     const QString name  = edtEmpName->text().trimmed();
     const QString phone = edtEmpPhone->text().trimmed();
     if (name.isEmpty()) { log("Çalışan adı gir."); return; }
 
+    const int salonIdx = cmbSalonForEmployee ? cmbSalonForEmployee->currentIndex() : -1;
+    if (salonIdx < 0 || salonIdx >= static_cast<int>(salonController.salons().size())) {
+        log("Önce salon ekle veya demo yükle.");
+        return;
+    }
+
     Employee e(name.toStdString(), phone.toStdString());
-    const auto skills = edtEmpSkills->text().split(',', Qt::SkipEmptyParts);
-    for (const auto& s : skills) {
-        const auto trimmed = s.trimmed();
-        if (!trimmed.isEmpty()) e.addSkill(trimmed.toStdString());
+    if (lstEmpSkills) {
+        for (int i = 0; i < lstEmpSkills->count(); ++i) {
+            auto* item = lstEmpSkills->item(i);
+            if (item->checkState() == Qt::Checked)
+                e.addSkill(item->text().toStdString());
+        }
+    }
+
+    if (e.getSkills().empty()) {
+        log("En az bir yetenek seç.");
+        return;
     }
 
     const QDate d = dateEdit->date();
@@ -524,10 +659,13 @@ void MainWindow::onAddEmployee() {
                      spnEmpAvailDuration->value() };
     e.addAvailability(avail);
 
-    if (salonController.addEmployeeToActive(e)) {
+    const bool targetIsActive = salonController.activeSalonIndex() == static_cast<size_t>(salonIdx);
+    if (salonController.addEmployeeToSalon(static_cast<size_t>(salonIdx), e)) {
+        if (!targetIsActive) salonController.setActiveSalon(static_cast<size_t>(salonIdx));
         log(QString("Çalışan eklendi: %1").arg(name));
         refreshTables();
         refreshAppointments();
+        refreshSkillPool();
     } else {
         log("Çalışan eklenemedi (aktif salon yok).");
     }
@@ -543,6 +681,8 @@ void MainWindow::onAddService() {
     if (salonController.addServiceToActive(s)) {
         log(QString("Hizmet eklendi: %1 (%2 dk)").arg(name).arg(spnServiceDuration->value()));
         refreshTables();
+        refreshSkillPool();
+        refreshEmployeeCandidates();
     } else {
         log("Hizmet eklenemedi (aktif salon yok).");
     }
@@ -553,8 +693,8 @@ void MainWindow::onAddSkillToEmployee() {
     const int idx = cmbEmployeeEdit->currentIndex();
     if (idx < 0) { log("Çalışan seç."); return; }
 
-    const QString skill = edtNewSkill->text().trimmed();
-    if (skill.isEmpty()) { log("Yetenek gir."); return; }
+    const QString skill = cmbSkillPool ? cmbSkillPool->currentText().trimmed() : QString();
+    if (skill.isEmpty()) { log("Hizmet / yetenek seç."); return; }
 
     if (salonController.addSkillToEmployee(static_cast<size_t>(idx), skill.toStdString())) {
         log(QString("Yetenek eklendi: %1 -> %2").arg(skill).arg(cmbEmployeeEdit->currentText()));
@@ -616,6 +756,7 @@ void MainWindow::onLoadJson() {
         refreshSalonCombo();
         refreshTables();
         refreshAppointments();
+        refreshEmployeeCandidates();
         log("Yüklendi: " + path);
     } else {
         log("JSON yüklenemedi: " + path);

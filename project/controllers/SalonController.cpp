@@ -3,6 +3,7 @@
 
 #include <QDateTime>
 #include <QTime>
+#include <algorithm>
 
 namespace {
     TimeSlot slotFor(const QDate& day, int hour, int minute, int durationMinutes) {
@@ -50,16 +51,28 @@ bool SalonController::setActiveSalon(size_t idx) {
     return true;
 }
 
-void SalonController::addSalon(const std::string& name, const TimeSlot& workingHours) {
+bool SalonController::addSalon(const std::string& name, const TimeSlot& workingHours) {
+    const auto it = std::find_if(m_salons.begin(), m_salons.end(), [&](const Salon& s) {
+        return s.getName() == name;
+    });
+    if (it != m_salons.end()) return false;
+
     Salon s(name);
     s.setWorkingHours(workingHours);
     m_salons.push_back(s);
     m_activeSalon = m_salons.size() - 1;
+    return true;
 }
 
 bool SalonController::addEmployeeToActive(const Employee& e) {
     if (m_salons.empty()) return false;
     active().addEmployee(e);
+    return true;
+}
+
+bool SalonController::addEmployeeToSalon(size_t salonIdx, const Employee& e) {
+    if (salonIdx >= m_salons.size()) return false;
+    m_salons[salonIdx].addEmployee(e);
     return true;
 }
 
