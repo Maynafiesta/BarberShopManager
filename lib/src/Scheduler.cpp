@@ -3,12 +3,12 @@
 
 bool Scheduler::isEmployeeAvailable(const Employee& employee, const TimeSlot& desired) const {
     for (const auto& s : employee.getAvailability())
-        if (s.overlaps(desired)) return true;
+        if (s.contains(desired)) return true;
     return false;
 }
 
 bool Scheduler::isInsideWorkingHours(const Salon& salon, const TimeSlot& desired) const {
-    return salon.getWorkingHours().overlaps(desired);
+    return salon.getWorkingHours().contains(desired);
 }
 
 bool Scheduler::hasCollision(const Salon& salon, const Employee& employee, const TimeSlot& desired) const {
