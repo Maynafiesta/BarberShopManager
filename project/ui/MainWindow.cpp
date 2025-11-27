@@ -62,6 +62,8 @@ void MainWindow::buildUi() {
     auto* top = new QHBoxLayout();
     btnLoadDemo   = new QPushButton("Demo veriyi yükle", customerTab);
     cmbSalons     = new QComboBox(customerTab);
+    btnLoadDemo   = new QPushButton("Demo veriyi yükle", central);
+    cmbSalons     = new QComboBox(central);
     cmbSalons->setPlaceholderText("Salon seç");
     cmbSalons->setEnabled(false);
 
@@ -80,6 +82,10 @@ void MainWindow::buildUi() {
     top->addWidget(cmbSalons);
     top->addSpacing(12);
     top->addWidget(new QLabel("Tarih:", customerTab));
+    top->addWidget(new QLabel("Salon:", central));
+    top->addWidget(cmbSalons);
+    top->addSpacing(12);
+    top->addWidget(new QLabel("Tarih:", central));
     top->addWidget(dateEdit);
     top->addSpacing(8);
     top->addWidget(new QLabel("Saat:", customerTab));
@@ -712,6 +718,25 @@ QByteArray MainWindow::serializeSalonToJson() const {
         return root;
     };
 
+
+            ao["price"] = a.getTotalPrice();
+
+            apps.push_back(ao);
+        }
+
+        QJsonObject working;
+        working["startEpoch"] = static_cast<qint64>(salon.getWorkingHours().startEpoch);
+        working["duration"]   = salon.getWorkingHours().durationMinutes;
+
+        QJsonObject root;
+        root["name"]         = QString::fromStdString(salon.getName());
+        root["workingHours"] = working;
+        root["employees"]    = employees;
+        root["services"]     = services;
+        root["appointments"] = apps;
+        return root;
+    };
+
     QJsonArray allSalons;
     for (const auto& s : salonController.salons())
         allSalons.push_back(serializeSalon(s));
@@ -804,6 +829,26 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
 
             const auto& empList = salon.getEmployees();
             const auto& svcList = salon.getServices();
+
+            if (ei < 0 || si < 0 || ei >= empList.size() || si >= svcList.size())
+                continue;
+
+            const Employee* eptr = &empList[static_cast<size_t>(ei)];
+            const Service*  sptr = &svcList[static_cast<size_t>(si)];
+
+            TimeSlot ts;
+            ts.startEpoch      = static_cast<std::time_t>(a.value("startEpoch").toVariant().toLongLong());
+            ts.durationMinutes = a.value("duration").toInt();
+
+            Appointment made(&customers.front(), eptr, *sptr, ts);
+
+            const auto st = a.value("status").toString("Approved");
+            if (st == "Rejected")      made.reject();
+            else /*Pending/Approved*/  made.approve();
+
+            salon.addAppointment(made);
+        }
+
 
             if (ei < 0 || si < 0 || ei >= empList.size() || si >= svcList.size())
                 continue;
