@@ -521,12 +521,7 @@ void MainWindow::onCreateAppointment() {
     if (srow < 0) { log("Lütfen bir hizmet seç."); return; }
 
     const auto* nameItem = tblEmployees->item(erow, 0);
-    int empIdx = -1;
-    if (nameItem) {
-        bool ok = false;
-        const int parsed = nameItem->data(Qt::UserRole).toInt(&ok);
-        empIdx = ok ? parsed : -1;
-    }
+    const int empIdx = nameItem ? nameItem->data(Qt::UserRole).toInt(-1) : -1;
     if (empIdx < 0 || empIdx >= static_cast<int>(salonController.employees().size())) {
         log("Seçili çalışan bulunamadı.");
         return;
@@ -941,14 +936,13 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
         for (const auto& av : apps) {
             const auto a = av.toObject();
 
-            bool eiOk = false, siOk = false;
-            const int ei = a.value("employeeIndex").toInt(&eiOk);
-            const int si = a.value("serviceIndex").toInt(&siOk);
+            const int ei = a.value("employeeIndex").toInt(-1);
+            const int si = a.value("serviceIndex").toInt(-1);
 
             const auto& empList = salon.getEmployees();
             const auto& svcList = salon.getServices();
 
-            if (!eiOk || !siOk || ei < 0 || si < 0) continue;
+            if (ei < 0 || si < 0) continue;
 
             const auto eIdx = static_cast<size_t>(ei);
             const auto sIdx = static_cast<size_t>(si);
