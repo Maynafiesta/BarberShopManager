@@ -57,8 +57,18 @@ bool SalonController::addSalon(const std::string& name, const TimeSlot& workingH
     });
     if (it != m_salons.end()) return false;
 
-    Salon s(name);
-    s.setWorkingHours(workingHours);
+    Salon s( name );
+    s.setWorkingHours( workingHours );
+    s.addService( Service( "Saç kesimi",           30, 250 ) );
+    s.addService( Service( "Fön",                  15, 120 ) );
+    s.addService( Service( "Saç kesimi + fön",     40, 300 ) );
+    s.addService( Service( "Sakal traşı",          20, 150 ) );
+    s.addService( Service( "Saç + sakal paket",    45, 380 ) );
+    s.addService( Service( "Çocuk saç kesimi",     20, 200 ) );
+    s.addService( Service( "Saç boyama",           60, 600 ) );
+    s.addService( Service( "Keratin bakımı",       90, 1200 ) );
+    s.addService( Service( "Saç bakım maskesi",    25, 250 ) );
+    s.addService( Service( "Saç yıkama + şekil",   15, 120 ) );
     m_salons.push_back(s);
     m_activeSalon = m_salons.size() - 1;
     return true;
@@ -107,59 +117,105 @@ bool SalonController::removeAppointmentAt(size_t idx) {
     return active().removeAppointmentAt(idx);
 }
 
-void SalonController::loadDemoData(const QDate& day) {
+void SalonController::loadDemoData( const QDate& day ) {
     m_salons.clear();
 
-    // Merkez şube: 09:00 - 21:00
-    Salon merkez("Merkez Şube");
-    merkez.setWorkingHours(slotFor(day, 9, 0, 12 * 60));
+    // Serdivan şube: 09:00 - 21:00
+    Salon serdivanStore( "Serdivan Şube" );
+    serdivanStore.setWorkingHours( slotFor( day, 9, 0, 12 * 60 ) );
 
-    Employee e1("Ahmet Usta", "0500 000 0001");
-    e1.addSkill("Saç kesimi");
-    e1.addSkill("Sakal tıraşı");
-    e1.addAvailability(slotFor(day, 10, 0, 4 * 60));
+    Employee e1( "Ahmet Saçkeser", "0500 000 0001" );
+    e1.addSkill( "Saç kesimi" );
+    e1.addSkill( "Fön" );
+    e1.addSkill( "Saç kesimi + fön" );
+    e1.addSkill( "Sakal traşı" );
+    e1.addSkill( "Saç + sakal paket" );
+    e1.addSkill( "Çocuk saç kesimi" );
+    e1.addSkill( "Saç boyama" );
+    e1.addSkill( "Keratin bakımı" );
+    e1.addSkill( "Saç bakım maskesi" );
+    e1.addSkill( "Saç yıkama + şekil" );
+    e1.addAvailability( slotFor( day, 10, 0, 4 * 60 ) );
 
-    Employee e2("Merve", "0500 000 0002");
-    e2.addSkill("Boya");
-    e2.addSkill("Fön");
-    e2.addAvailability(slotFor(day, 12, 0, 6 * 60));
+    Employee e2( "Merve Fönyapar", "0500 000 0002" );
+    e2.addSkill( "Saç kesimi" );
+    e2.addSkill( "Fön" );
+    e2.addSkill( "Saç kesimi + fön" );
+    e2.addSkill( "Sakal traşı" );
+    e2.addSkill( "Saç + sakal paket" );
+    e2.addSkill( "Çocuk saç kesimi" );
+    e2.addSkill( "Saç boyama" );
+    e2.addSkill( "Keratin bakımı" );
+    e2.addSkill( "Saç bakım maskesi" );
+    e2.addSkill( "Saç yıkama + şekil" );
+    e2.addAvailability( slotFor( day, 12, 0, 6 * 60 ) );
 
-    merkez.addEmployee(e1);
-    merkez.addEmployee(e2);
+    serdivanStore.addEmployee( e1 );
+    serdivanStore.addEmployee( e2 );
 
-    merkez.addService(Service("Saç kesimi", 30, 250.0));
-    merkez.addService(Service("Sakal tıraşı", 20, 150.0));
-    merkez.addService(Service("Boya", 90, 900.0));
-    merkez.addService(Service("Fön", 15, 120.0));
+    serdivanStore.addService( Service( "Saç kesimi",           30, 250 ) );
+    serdivanStore.addService( Service( "Fön",                  15, 120 ) );
+    serdivanStore.addService( Service( "Saç kesimi + fön",     40, 300 ) );
+    serdivanStore.addService( Service( "Sakal traşı",          20, 150 ) );
+    serdivanStore.addService( Service( "Saç + sakal paket",    45, 380 ) );
+    serdivanStore.addService( Service( "Çocuk saç kesimi",     20, 200 ) );
+    serdivanStore.addService( Service( "Saç boyama",           60, 600 ) );
+    serdivanStore.addService( Service( "Keratin bakımı",       90, 1200 ) );
+    serdivanStore.addService( Service( "Saç bakım maskesi",    25, 250 ) );
+    serdivanStore.addService( Service( "Saç yıkama + şekil",   15, 120 ) );
 
     // İkinci şube: farklı mesai ve uzmanlıklar
-    Salon ikinci("Şube 2");
-    ikinci.setWorkingHours(slotFor(day, 8, 30, 10 * 60)); // 08:30 - 18:30
+    Salon arifiyeStore( "Arifiye Şubesi" );
+    arifiyeStore.setWorkingHours( slotFor( day, 8, 30, 10 * 60 ) ); // 08:30 - 18:30
 
-    Employee e3("Burak", "0500 000 0003");
-    e3.addSkill("Saç kesimi");
-    e3.addSkill("Çocuk tıraşı");
-    e3.addAvailability(slotFor(day, 9, 0, 5 * 60));
+    Employee e3( "Burak Bıyıkkeser", "0500 000 0003" );
+    e3.addSkill( "Saç kesimi" );
+    e3.addSkill( "Fön" );
+    e3.addSkill( "Saç kesimi + fön" );
+    e3.addSkill( "Sakal traşı" );
+    e3.addSkill( "Saç + sakal paket" );
+    e3.addSkill( "Çocuk saç kesimi" );
+    e3.addSkill( "Saç boyama" );
+    e3.addSkill( "Keratin bakımı" );
+    e3.addSkill( "Saç bakım maskesi" );
+    e3.addSkill( "Saç yıkama + şekil" );
 
-    Employee e4("Elif", "0500 000 0004");
-    e4.addSkill("Boya");
-    e4.addSkill("Fön");
-    e4.addSkill("Keratin bakımı");
-    e4.addAvailability(slotFor(day, 13, 0, 5 * 60));
+    e3.addAvailability( slotFor( day, 9, 0, 5 * 60 ) );
 
-    ikinci.addEmployee(e3);
-    ikinci.addEmployee(e4);
+    Employee e4( "Elif Keratinler", "0500 000 0004" );
+    
+    e4.addSkill( "Saç kesimi" );
+    e4.addSkill( "Fön" );
+    e4.addSkill( "Saç kesimi + fön" );
+    e4.addSkill( "Sakal traşı" );
+    e4.addSkill( "Saç + sakal paket" );
+    e4.addSkill( "Çocuk saç kesimi" );
+    e4.addSkill( "Saç boyama" );
+    e4.addSkill( "Keratin bakımı" );
+    e4.addSkill( "Saç bakım maskesi" );
+    e4.addSkill( "Saç yıkama + şekil" );
 
-    ikinci.addService(Service("Çocuk tıraşı", 25, 180.0));
-    ikinci.addService(Service("Saç kesimi", 30, 230.0));
-    ikinci.addService(Service("Keratin bakımı", 75, 1200.0));
-    ikinci.addService(Service("Boya", 80, 850.0));
+    e4.addAvailability( slotFor( day, 13, 0, 5 * 60 ) );
 
-    m_salons.push_back(merkez);
-    m_salons.push_back(ikinci);
+    arifiyeStore.addEmployee( e3 );
+    arifiyeStore.addEmployee( e4 );
+
+    arifiyeStore.addService( Service( "Saç kesimi",           30, 250 ) );
+    arifiyeStore.addService( Service( "Fön",                  15, 120 ) );
+    arifiyeStore.addService( Service( "Saç kesimi + fön",     40, 300 ) );
+    arifiyeStore.addService( Service( "Sakal traşı",          20, 150 ) );
+    arifiyeStore.addService( Service( "Saç + sakal paket",    45, 380 ) );
+    arifiyeStore.addService( Service( "Çocuk saç kesimi",     20, 200 ) );
+    arifiyeStore.addService( Service( "Saç boyama",           60, 600 ) );
+    arifiyeStore.addService( Service( "Keratin bakımı",       90, 1200 ) );
+    arifiyeStore.addService( Service( "Saç bakım maskesi",    25, 250 ) );
+    arifiyeStore.addService( Service( "Saç yıkama + şekil",   15, 120 ) );
+
+    m_salons.push_back( serdivanStore );
+    m_salons.push_back( arifiyeStore );
 
     m_activeSalon = 0;
 
     m_customers.clear();
-    m_customers.emplace_back("Tarık", "0555 555 55 55");
+    m_customers.emplace_back( "Tarık Yakışıklıoğlu", "0555 555 55 55" );
 }

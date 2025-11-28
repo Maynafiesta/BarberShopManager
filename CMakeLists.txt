@@ -15,11 +15,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# warnings
+# warnings + debug flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror=return-type)
+  add_compile_options(-g3 -O0 -Wall -Wextra -Wpedantic -Werror=return-type)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-  add_compile_options(/W4)
+  add_compile_options(/W4 /Zi)
 endif()
 
 # Qt GUI isteğe bağlı: sadece istenirse bul ve ekle

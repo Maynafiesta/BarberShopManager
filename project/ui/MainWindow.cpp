@@ -22,150 +22,177 @@
 #include <QStringList>
 #include <QListWidget>
 #include <QItemSelectionModel>
-
-// JSON / Dosya
 #include <QFile>
 #include <QFileDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QHash>
+#include <utility>
 #include <algorithm>
 #include <set>
 #include <optional>
 #include <QCoreApplication>
 
 namespace {
-int safeToInt(const QVariant& var, bool& ok) {
-    const int val = var.toInt(&ok);
+int safeToInt( const QVariant& var, bool& ok ) 
+{
+    const int val = var.toInt( &ok );
     return ok ? val : -1;
 }
 
-int safeToInt(const QJsonValue& value, bool& ok) {
-    const int val = value.toInt(&ok);
-    return ok ? val : -1;
+int safeToInt( const QJsonValue& value, bool& ok ) 
+{
+    ok = false;
+
+    // Sadece sayısal veya string ise dene
+    if( !value.isDouble() && !value.isString() )
+    {
+        return -1;
+    }    
+
+    int v = value.toInt( -1 );   // default -1: geçersiz/boş için
+    
+    if( v < 0 ) 
+    {
+        return -1;
+    }
+
+    ok = true;
+    return v;
 }
 
-std::optional<TimeSlot> buildSlot(const QDate& day, const QTime& start, const QTime& end) {
-    if (end <= start) return std::nullopt;
-    const int durationMinutes = static_cast<int>(start.secsTo(end) / 60);
-    if (durationMinutes <= 0) return std::nullopt;
+std::optional<TimeSlot>buildSlot( const QDate& day, const QTime& start, const QTime& end ) 
+{
+    if( end <= start ) 
+    {
+        return std::nullopt;
+    }
 
-    TimeSlot slot { static_cast<std::time_t>(QDateTime(day, start, Qt::LocalTime).toSecsSinceEpoch()),
-                    durationMinutes };
+    const int durationMinutes = static_cast<int>( start.secsTo( end ) / 60 );
+
+    if( durationMinutes <= 0 ) 
+    {
+        return std::nullopt;
+    }
+
+    TimeSlot slot { static_cast<std::time_t>( QDateTime( day, start, Qt::LocalTime ).toSecsSinceEpoch() ), durationMinutes };
     return slot;
 }
 }
 
-MainWindow::MainWindow(QWidget* parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
-    , salonController(salons, customers)
-    , appointmentController(scheduler) {
-    dataDirPath  = QDir(QCoreApplication::applicationDirPath()).filePath("data");
-    dataFilePath = QDir(dataDirPath).filePath("state.json");
-    QDir().mkpath(dataDirPath);
+MainWindow::MainWindow( QWidget* parent )
+    : QMainWindow( parent )
+    , ui( new Ui::MainWindow )
+    , salonController( salons, customers )
+    , appointmentController( scheduler ) 
+{
+    dataDirPath  = QDir( QCoreApplication::applicationDirPath() ).filePath( "data" );
+    dataFilePath = QDir( dataDirPath ).filePath( "state.json" );
+    QDir().mkpath( dataDirPath );
 
-    ui->setupUi(this);
-    setWindowTitle("BarberShopManager");
+    ui->setupUi( this );
+    setWindowTitle( "BarberShopManager" );
     buildUi();
-    appointmentController.setActiveSalon(currentSalon());
+    appointmentController.setActiveSalon( currentSalon() );
 
-    if (!loadStateFromDisk()) {
+    if( !loadStateFromDisk() )
+    {
         refreshTables();
         refreshAppointments();
     }
 }
 
-MainWindow::~MainWindow() { delete ui; }
+MainWindow::~MainWindow() 
+{
+    delete ui;
+}
 
-void MainWindow::buildUi() {
-    central  = new QWidget(this);
-    auto* v0 = new QVBoxLayout(central);
-
-    roleTabs = new QTabWidget(central);
-    auto* customerTab = new QWidget(roleTabs);
-    auto* adminTab    = new QWidget(roleTabs);
-    roleTabs->addTab(customerTab, "Müşteri");
-    roleTabs->addTab(adminTab,    "Yönetici");
+void MainWindow::buildUi() 
+{
+    central  = new QWidget( this );
+    auto* v0 = new QVBoxLayout( central );
+    roleTabs = new QTabWidget( central );
+    auto* customerTab = new QWidget( roleTabs );
+    auto* adminTab    = new QWidget( roleTabs );
+    roleTabs->addTab( customerTab, "Müşteri" );
+    roleTabs->addTab( adminTab,    "Yönetici" );
 
     // --- Müşteri paneli ---
-    auto* v = new QVBoxLayout(customerTab);
+    auto* v = new QVBoxLayout( customerTab );
 
     // Üst şerit (demo + tarih/saat + oluştur)
     auto* top = new QHBoxLayout();
-    btnLoadDemo   = new QPushButton("Demo veriyi yükle", customerTab);
-    cmbSalons     = new QComboBox(customerTab);
-    cmbSalons->setPlaceholderText("Salon seç");
-    cmbSalons->setEnabled(false);
+    btnLoadDemo   = new QPushButton( "Demo veriyi yükle", customerTab );
+    cmbSalons     = new QComboBox( customerTab );
+    cmbSalons->setPlaceholderText( "Salon seç" );
+    cmbSalons->setEnabled( false );
+    dateEdit = new QDateEdit( QDate::currentDate(), customerTab );
+    dateEdit->setCalendarPopup( true );
+    dateEdit->setDisplayFormat( "dd.MM.yyyy" );
+    timeEdit = new QTimeEdit( QTime( 10,0 ), customerTab );
+    timeEdit->setDisplayFormat( "HH:mm" );
 
-    dateEdit = new QDateEdit(QDate::currentDate(), customerTab);
-    dateEdit->setCalendarPopup(true);
-    dateEdit->setDisplayFormat("dd.MM.yyyy");
+    btnCreateAppt = new QPushButton( "Seçili çalışan + hizmet ile randevu", customerTab );
 
-    timeEdit = new QTimeEdit(QTime(10,0), customerTab);
-    timeEdit->setDisplayFormat("HH:mm");
-
-    btnCreateAppt = new QPushButton("Seçili çalışan + hizmet ile randevu", customerTab);
-
-    top->addWidget(btnLoadDemo);
-    top->addSpacing(12);
-    top->addWidget(new QLabel("Salon:", customerTab));
-    top->addWidget(cmbSalons);
-    top->addSpacing(12);
-    top->addWidget(new QLabel("Tarih:", customerTab));
-    top->addWidget(dateEdit);
-    top->addSpacing(8);
-    top->addWidget(new QLabel("Saat:", customerTab));
-    top->addWidget(timeEdit);
-    top->addSpacing(12);
-    top->addWidget(btnCreateAppt);
-    top->addStretch(1);
+    top->addWidget( btnLoadDemo );
+    top->addSpacing( 12 );
+    top->addWidget( new QLabel( "Salon:", customerTab ) );
+    top->addWidget( cmbSalons );
+    top->addSpacing( 12 );
+    top->addWidget( new QLabel( "Tarih:", customerTab ) );
+    top->addWidget( dateEdit );
+    top->addSpacing( 8 );
+    top->addWidget( new QLabel( "Saat:", customerTab ) );
+    top->addWidget( timeEdit );
+    top->addSpacing( 12 );
+    top->addWidget( btnCreateAppt );
+    top->addStretch( 1 );
 
     // Orta tablolar (çalışanlar ve hizmetler)
     auto* mid = new QHBoxLayout();
-    tblEmployees = new QTableWidget(0, 3, customerTab);
-    tblEmployees->setHorizontalHeaderLabels({ "Çalışan", "Ücret", "Yetenekler" });
-    tblEmployees->horizontalHeader()->setStretchLastSection(true);
-    tblEmployees->verticalHeader()->setVisible(false);
-    tblEmployees->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tblEmployees->setSelectionMode(QAbstractItemView::SingleSelection);
-    tblEmployees->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tblEmployees = new QTableWidget( 0, 3, customerTab );
+    tblEmployees->setHorizontalHeaderLabels( { "Çalışan", "Ücret", "Yetenekler" } );
+    tblEmployees->horizontalHeader()->setStretchLastSection( true );
+    tblEmployees->verticalHeader()->setVisible( false );
+    tblEmployees->setSelectionBehavior( QAbstractItemView::SelectRows );
+    tblEmployees->setSelectionMode( QAbstractItemView::SingleSelection );
+    tblEmployees->setEditTriggers( QAbstractItemView::NoEditTriggers );
 
-    tblServices = new QTableWidget(0, 3, customerTab);
-    tblServices->setHorizontalHeaderLabels({ "Hizmet", "Süre (dk)", "Ücret" });
-    tblServices->horizontalHeader()->setStretchLastSection(true);
-    tblServices->verticalHeader()->setVisible(false);
-    tblServices->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tblServices->setSelectionMode(QAbstractItemView::SingleSelection);
-    tblServices->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tblServices = new QTableWidget( 0, 3, customerTab );
+    tblServices->setHorizontalHeaderLabels( { "Hizmet", "Süre (dk)", "Ücret" } );
+    tblServices->horizontalHeader()->setStretchLastSection( true );
+    tblServices->verticalHeader()->setVisible( false );
+    tblServices->setSelectionBehavior( QAbstractItemView::SelectRows );
+    tblServices->setSelectionMode( QAbstractItemView::SingleSelection );
+    tblServices->setEditTriggers( QAbstractItemView::NoEditTriggers );
 
-    mid->addWidget(tblEmployees, 1);
-    mid->addWidget(tblServices,  1);
+    mid->addWidget( tblEmployees, 1 );
+    mid->addWidget( tblServices,  1 );
 
     // Randevular tablosu
-    tblAppointments = new QTableWidget(0, 5, customerTab);
-    tblAppointments->setHorizontalHeaderLabels({ "Tarih/Saat", "Çalışan", "Hizmet", "Durum", "Ücret" });
-    tblAppointments->horizontalHeader()->setStretchLastSection(true);
-    tblAppointments->verticalHeader()->setVisible(false);
-    tblAppointments->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tblAppointments->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tblAppointments->setSelectionMode(QAbstractItemView::SingleSelection);
+    tblAppointments = new QTableWidget( 0, 5, customerTab );
+    tblAppointments->setHorizontalHeaderLabels( { "Tarih/Saat", "Çalışan", "Hizmet", "Durum", "Ücret" } );
+    tblAppointments->horizontalHeader()->setStretchLastSection( true );
+    tblAppointments->verticalHeader()->setVisible( false );
+    tblAppointments->setEditTriggers( QAbstractItemView::NoEditTriggers );
+    tblAppointments->setSelectionBehavior( QAbstractItemView::SelectRows );
+    tblAppointments->setSelectionMode( QAbstractItemView::SingleSelection );
 
     // Randevu aksiyonları
     auto* actions = new QHBoxLayout();
-    btnReject = new QPushButton("Seçileni Reddet", customerTab);
-    btnDelete = new QPushButton("Seçileni Sil", customerTab);
-    actions->addWidget(btnReject);
-    actions->addWidget(btnDelete);
+    btnReject = new QPushButton( "Seçileni Reddet", customerTab );
+    btnDelete = new QPushButton( "Seçileni Sil", customerTab );
+    actions->addWidget( btnReject );
+    actions->addWidget( btnDelete );
     actions->addStretch(1);
 
     // Kalıcılık butonları (kaydet/yükle)
     auto* persist = new QHBoxLayout();
-    btnSave = new QPushButton("JSON’a Kaydet", customerTab);
-    btnLoad = new QPushButton("JSON’dan Yükle", customerTab);
-    persist->addWidget(btnSave);
-    persist->addWidget(btnLoad);
+    // btnSave = new QPushButton("JSON’a Kaydet", customerTab);
+    // btnLoad = new QPushButton("JSON’dan Yükle", customerTab);
+    // persist->addWidget(btnSave);
+    // persist->addWidget(btnLoad);
     persist->addStretch(1);
 
     v->addLayout(top);
@@ -274,8 +301,8 @@ void MainWindow::buildUi() {
     connect(timeEdit, &QTimeEdit::timeChanged, this, &MainWindow::refreshEmployeeCandidates);
     connect(dateEdit, &QDateEdit::dateChanged, this, &MainWindow::refreshEmployeeCandidates);
 
-    connect(btnSave,       &QPushButton::clicked, this, &MainWindow::onSaveJson);
-    connect(btnLoad,       &QPushButton::clicked, this, &MainWindow::onLoadJson);
+    // connect(btnSave,       &QPushButton::clicked, this, &MainWindow::onSaveJson);
+    // connect(btnLoad,       &QPushButton::clicked, this, &MainWindow::onLoadJson);
 
     // admin
     connect(btnAddSalon, &QPushButton::clicked, this, &MainWindow::onAddSalon);
@@ -519,17 +546,16 @@ int MainWindow::selectedAppointmentRow() const {
     return sel.isEmpty() ? -1 : sel.front().row();
 }
 
-void MainWindow::onLoadDemo() {
+void MainWindow::onLoadDemo() 
+{
     const auto today = QDate::currentDate();
-
-    salonController.loadDemoData(today);
-
+    salonController.loadDemoData( today );
     refreshSalonCombo();
-    appointmentController.setActiveSalon(currentSalon());
+    appointmentController.setActiveSalon( currentSalon() );
     refreshTables();
     refreshAppointments();
     saveStateToDisk();
-    log("Demo yüklendi. Salon seç, Tarih/Saat seç, bir çalışan + bir hizmet seç ve randevu oluştur.");
+    log( "Demo yüklendi. Salon seç, Tarih/Saat seç, bir çalışan + bir hizmet seç ve randevu oluştur." );
 }
 
 void MainWindow::onSalonChanged(int index) {
@@ -653,20 +679,26 @@ void MainWindow::onAddSalon() {
     const QTime start = edtSalonStart->time();
     const QTime end   = edtSalonEnd->time();
     auto wh = buildSlot(d, start, end);
-    if (!wh) {
+    
+    if( !wh ) 
+    {
         log("Kapanış saati başlangıçtan sonra olmalı.");
         return;
     }
 
-    if (customers.empty())
-        customers.emplace_back("Müşteri", "05xx xxx xx xx");
+    if( customers.empty() )
+    {
+        customers.emplace_back( "Müşteri", "05xx xxx xx xx" );
+    }
 
-    if (!salonController.addSalon(name.toStdString(), *wh)) {
-        log("Aynı isimde salon zaten var.");
+    if( !salonController.addSalon( name.toStdString(), *wh ) ) 
+    {
+        log( "Aynı isimde salon zaten var." );
         return;
     }
+
     refreshSalonCombo();
-    appointmentController.setActiveSalon(currentSalon());
+    appointmentController.setActiveSalon( currentSalon() );
     refreshTables();
     refreshAppointments();
     refreshSkillPool();
@@ -1078,10 +1110,10 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
             if (st == "Rejected")      made.reject();
             else /*Pending/Approved*/  made.approve();
 
-            salon.addAppointment(made);
+            salon.addAppointment( made );
         }
 
-        salons.push_back(salon);
+        salons.emplace_back( std::move( salon ) );
     }
 
     const auto activeIdx = static_cast<size_t>(root.value("activeSalon").toInt(0));
