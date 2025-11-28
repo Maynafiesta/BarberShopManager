@@ -18,7 +18,6 @@ public:
     bool addEmployeeToSalon(size_t salonIdx, const Employee& e);
     bool addServiceToActive(const Service& s);
     bool addSkillToEmployee(size_t employeeIdx, const std::string& skill);
-    bool setEmployeeSkills(size_t employeeIdx, const std::vector<std::string>& skills);
     bool addAvailabilityToEmployee(size_t employeeIdx, const TimeSlot& slot);
     size_t activeSalonIndex() const noexcept { return m_activeSalon; }
 

@@ -20,12 +20,6 @@ bool Salon::addSkillToEmployee(size_t idx, const std::string& skill) {
     return true;
 }
 
-bool Salon::setEmployeeSkills(size_t idx, const std::vector<std::string>& skills) {
-    if (idx >= m_employees.size()) return false;
-    m_employees[idx].setSkills(skills);
-    return true;
-}
-
 bool Salon::addAvailabilityToEmployee(size_t idx, const TimeSlot& slot) {
     if (idx >= m_employees.size()) return false;
     m_employees[idx].addAvailability(slot);

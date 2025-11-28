@@ -103,16 +103,16 @@ private:
     QComboBox*      cmbSalonForEmployee{nullptr};
     QListWidget*    lstEmpSkills{nullptr};
     QTimeEdit*      edtEmpAvailStart{nullptr};
-    QTimeEdit*      edtEmpAvailEnd{nullptr};
+    QSpinBox*       spnEmpAvailDuration{nullptr};
 
     QLineEdit*      edtServiceName{nullptr};
     QSpinBox*       spnServiceDuration{nullptr};
     QSpinBox*       spnServicePrice{nullptr};
 
     QComboBox*      cmbEmployeeEdit{nullptr};
-    QListWidget*    lstEditSkills{nullptr};
+    QComboBox*      cmbSkillPool{nullptr};
     QTimeEdit*      edtNewAvailStart{nullptr};
-    QTimeEdit*      edtNewAvailEnd{nullptr};
+    QSpinBox*       spnNewAvailDuration{nullptr};
 
     QPlainTextEdit* txtLog{nullptr};
     QTimeEdit*      timeEdit{nullptr};

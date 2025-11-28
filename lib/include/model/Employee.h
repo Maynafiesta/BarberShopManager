@@ -11,7 +11,6 @@ public:
         : Person(std::move(name), std::move(phone), Role::Employee) {}
 
     void addSkill(const std::string& s) { m_skills.push_back(s); }
-    void setSkills(std::vector<std::string> skills);
     bool hasSkill(const std::string& s) const;
     const std::vector<std::string>& getSkills() const noexcept { return m_skills; }
 

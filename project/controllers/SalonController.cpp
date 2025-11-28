@@ -87,11 +87,6 @@ bool SalonController::addSkillToEmployee(size_t employeeIdx, const std::string& 
     return active().addSkillToEmployee(employeeIdx, skill);
 }
 
-bool SalonController::setEmployeeSkills(size_t employeeIdx, const std::vector<std::string>& skills) {
-    if (m_salons.empty()) return false;
-    return active().setEmployeeSkills(employeeIdx, skills);
-}
-
 bool SalonController::addAvailabilityToEmployee(size_t employeeIdx, const TimeSlot& slot) {
     if (m_salons.empty()) return false;
     return active().addAvailabilityToEmployee(employeeIdx, slot);
