@@ -36,16 +36,21 @@
 
 namespace {
 int safeToInt(const QVariant& var, bool& ok) {
-    const int val = var.toInt(&ok);
-    return ok ? val : -1;
+    ok = false;
+    if (!var.isValid())
+        return -1;
+    int v = var.toInt(&ok);
+    return ok ? v : -1;
 }
 
 int safeToInt(const QJsonValue& value, bool& ok) {
-    const int val = value.toInt(&ok);
-    return ok ? val : -1;
+    ok = false;
+    if (!value.isDouble() && !value.isString())
+        return -1;
+    ok = true;
+    return value.toInt(0); // default 0; sen istersen -1 da verebilirsin
 }
 }
-
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -535,7 +540,15 @@ void MainWindow::onCreateAppointment() {
     if (srow < 0) { log("Lütfen bir hizmet seç."); return; }
 
     const auto* nameItem = tblEmployees->item(erow, 0);
-    const int empIdx = nameItem ? nameItem->data(Qt::UserRole).toInt(-1) : -1;
+
+    int empIdx = -1;
+    if (nameItem) {
+        bool ok = false;
+        empIdx = nameItem->data(Qt::UserRole).toInt(&ok);
+        if (!ok) {
+            empIdx = -1;
+        }
+    }
 
     if (empIdx < 0 || empIdx >= static_cast<int>(salonController.employees().size())) {
         log("Seçili çalışan bulunamadı.");
@@ -548,8 +561,8 @@ void MainWindow::onCreateAppointment() {
 
     const QDate d = dateEdit->date();
     const QTime t = timeEdit->time();
-    TimeSlot slot { static_cast<std::time_t>(
-        QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
+    TimeSlot slot {
+        static_cast<std::time_t>(QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
         service.getDurationMinutes()
     };
 
