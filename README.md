@@ -1,5 +1,21 @@
+git link: https://github.com/Maynafiesta/BarberShopManager
+
+Tarık Kartal Y245012016
+
 # BarberShopManager
 Master OOP Project
+
+Derlemek için;
+-c clean
+-g debug
+
+quick-build-release.sh -c
+
+Çalıştırmak için proje dizininde;
+
+./cmake-build-cpp/project/BarberShopApp
+
+
 
 ## Yüzeysel Bakış
 ### Sınıf yapısı & kapsülleme 
