@@ -41,8 +41,19 @@ int safeToInt(const QVariant& var, bool& ok) {
 }
 
 int safeToInt(const QJsonValue& value, bool& ok) {
-    const int val = value.toInt(&ok);
-    return ok ? val : -1;
+    ok = false;
+
+    // Sadece sayısal veya string ise dene
+    if (!value.isDouble() && !value.isString())
+        return -1;
+
+    int v = value.toInt(-1);   // default -1: geçersiz/boş için
+    if (v < 0) {
+        return -1;
+    }
+
+    ok = true;
+    return v;
 }
 }
 
