@@ -32,6 +32,7 @@
 #include <QHash>
 #include <algorithm>
 #include <set>
+#include <optional>
 #include <QCoreApplication>
 
 namespace {
@@ -43,6 +44,16 @@ int safeToInt(const QVariant& var, bool& ok) {
 int safeToInt(const QJsonValue& value, bool& ok) {
     const int val = value.toInt(&ok);
     return ok ? val : -1;
+}
+
+std::optional<TimeSlot> buildSlot(const QDate& day, const QTime& start, const QTime& end) {
+    if (end <= start) return std::nullopt;
+    const int durationMinutes = static_cast<int>(start.secsTo(end) / 60);
+    if (durationMinutes <= 0) return std::nullopt;
+
+    TimeSlot slot { static_cast<std::time_t>(QDateTime(day, start, Qt::LocalTime).toSecsSinceEpoch()),
+                    durationMinutes };
+    return slot;
 }
 }
 
@@ -641,18 +652,16 @@ void MainWindow::onAddSalon() {
     const QDate d = dateEdit->date();
     const QTime start = edtSalonStart->time();
     const QTime end   = edtSalonEnd->time();
-    if (end <= start) {
+    auto wh = buildSlot(d, start, end);
+    if (!wh) {
         log("Kapanış saati başlangıçtan sonra olmalı.");
         return;
     }
-    const int durationMinutes = static_cast<int>(start.secsTo(end) / 60);
-    TimeSlot wh { static_cast<std::time_t>(QDateTime(d, start, Qt::LocalTime).toSecsSinceEpoch()),
-                  durationMinutes };
 
     if (customers.empty())
         customers.emplace_back("Müşteri", "05xx xxx xx xx");
 
-    if (!salonController.addSalon(name.toStdString(), wh)) {
+    if (!salonController.addSalon(name.toStdString(), *wh)) {
         log("Aynı isimde salon zaten var.");
         return;
     }
@@ -694,11 +703,9 @@ void MainWindow::onAddEmployee() {
     const QDate d = dateEdit->date();
     const QTime start = edtEmpAvailStart->time();
     const QTime end   = edtEmpAvailEnd->time();
-    if (end <= start) { log("Uygunluk bitişi başlangıçtan sonra olmalı."); return; }
-    const int duration = static_cast<int>(start.secsTo(end) / 60);
-    TimeSlot avail { static_cast<std::time_t>(QDateTime(d, start, Qt::LocalTime).toSecsSinceEpoch()),
-                     duration };
-    e.addAvailability(avail);
+    auto avail = buildSlot(d, start, end);
+    if (!avail) { log("Uygunluk bitişi başlangıçtan sonra olmalı."); return; }
+    e.addAvailability(*avail);
 
     const bool targetIsActive = salonController.activeSalonIndex() == static_cast<size_t>(salonIdx);
     if (salonController.addEmployeeToSalon(static_cast<size_t>(salonIdx), e)) {
@@ -764,12 +771,10 @@ void MainWindow::onAddAvailabilityToEmployee() {
     const QDate d = dateEdit->date();
     const QTime start = edtNewAvailStart->time();
     const QTime end   = edtNewAvailEnd->time();
-    if (end <= start) { log("Uygunluk bitişi başlangıçtan sonra olmalı."); return; }
-    const int duration = static_cast<int>(start.secsTo(end) / 60);
-    TimeSlot slot { static_cast<std::time_t>(QDateTime(d, start, Qt::LocalTime).toSecsSinceEpoch()),
-                    duration };
+    auto slot = buildSlot(d, start, end);
+    if (!slot) { log("Uygunluk bitişi başlangıçtan sonra olmalı."); return; }
 
-    if (salonController.addAvailabilityToEmployee(static_cast<size_t>(idx), slot)) {
+    if (salonController.addAvailabilityToEmployee(static_cast<size_t>(idx), *slot)) {
         log(QString("Uygunluk eklendi: %1 -> %2").arg(QDateTime(d, start, Qt::LocalTime).toString("dd.MM.yyyy HH:mm"))
                 .arg(cmbEmployeeEdit->currentText()));
         refreshTables();
