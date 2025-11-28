@@ -33,6 +33,20 @@
 #include <algorithm>
 #include <set>
 
+
+namespace {
+int safeToInt(const QVariant& var, bool& ok) {
+    const int val = var.toInt(&ok);
+    return ok ? val : -1;
+}
+
+int safeToInt(const QJsonValue& value, bool& ok) {
+    const int val = value.toInt(&ok);
+    return ok ? val : -1;
+}
+}
+
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -522,6 +536,7 @@ void MainWindow::onCreateAppointment() {
 
     const auto* nameItem = tblEmployees->item(erow, 0);
     const int empIdx = nameItem ? nameItem->data(Qt::UserRole).toInt(-1) : -1;
+
     if (empIdx < 0 || empIdx >= static_cast<int>(salonController.employees().size())) {
         log("Seçili çalışan bulunamadı.");
         return;
