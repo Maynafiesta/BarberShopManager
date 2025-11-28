@@ -32,23 +32,17 @@
 #include <QHash>
 #include <algorithm>
 #include <set>
-
+#include <QCoreApplication>
 
 namespace {
 int safeToInt(const QVariant& var, bool& ok) {
-    ok = false;
-    if (!var.isValid())
-        return -1;
-    int v = var.toInt(&ok);
-    return ok ? v : -1;
+    const int val = var.toInt(&ok);
+    return ok ? val : -1;
 }
 
 int safeToInt(const QJsonValue& value, bool& ok) {
-    ok = false;
-    if (!value.isDouble() && !value.isString())
-        return -1;
-    ok = true;
-    return value.toInt(0); // default 0; sen istersen -1 da verebilirsin
+    const int val = value.toInt(&ok);
+    return ok ? val : -1;
 }
 }
 
@@ -57,12 +51,19 @@ MainWindow::MainWindow(QWidget* parent)
     , ui(new Ui::MainWindow)
     , salonController(salons, customers)
     , appointmentController(scheduler) {
+    dataDirPath  = QDir(QCoreApplication::applicationDirPath()).filePath("data");
+    dataFilePath = QDir(dataDirPath).filePath("state.json");
+    QDir().mkpath(dataDirPath);
+
     ui->setupUi(this);
     setWindowTitle("BarberShopManager");
     buildUi();
     appointmentController.setActiveSalon(currentSalon());
-    refreshTables();
-    refreshAppointments();
+
+    if (!loadStateFromDisk()) {
+        refreshTables();
+        refreshAppointments();
+    }
 }
 
 MainWindow::~MainWindow() { delete ui; }
@@ -508,6 +509,7 @@ void MainWindow::onLoadDemo() {
     appointmentController.setActiveSalon(currentSalon());
     refreshTables();
     refreshAppointments();
+    saveStateToDisk();
     log("Demo yüklendi. Salon seç, Tarih/Saat seç, bir çalışan + bir hizmet seç ve randevu oluştur.");
 }
 
@@ -540,16 +542,12 @@ void MainWindow::onCreateAppointment() {
     if (srow < 0) { log("Lütfen bir hizmet seç."); return; }
 
     const auto* nameItem = tblEmployees->item(erow, 0);
+    const int empIdx      = [&]() {
+        if (!nameItem) return -1;
 
-    int empIdx = -1;
-    if (nameItem) {
         bool ok = false;
-        empIdx = nameItem->data(Qt::UserRole).toInt(&ok);
-        if (!ok) {
-            empIdx = -1;
-        }
-    }
-
+        return safeToInt(nameItem->data(Qt::UserRole), ok);
+    }();
     if (empIdx < 0 || empIdx >= static_cast<int>(salonController.employees().size())) {
         log("Seçili çalışan bulunamadı.");
         return;
@@ -578,6 +576,7 @@ void MainWindow::onCreateAppointment() {
                 .arg(service.getDurationMinutes())
                 .arg(created.getTotalPrice(), 0, 'f', 2));
             refreshAppointments();
+            saveStateToDisk();
             break;
         case Scheduler::CreateResult::OutsideWorkingHours:
             log("Randevu mesai saatleri dışında.");
@@ -600,6 +599,7 @@ void MainWindow::onRejectSelected() {
     if (salonController.rejectAppointmentAt(static_cast<size_t>(row))) {
         log("Randevu reddedildi.");
         refreshAppointments();
+        saveStateToDisk();
     } else {
         log("Randevu reddedilemedi (geçersiz indeks).");
     }
@@ -617,6 +617,7 @@ void MainWindow::onDeleteSelected() {
     if (salonController.removeAppointmentAt(static_cast<size_t>(row))) {
         log("Randevu silindi.");
         refreshAppointments();
+        saveStateToDisk();
     } else {
         log("Randevu silinemedi (geçersiz indeks).");
     }
@@ -652,6 +653,7 @@ void MainWindow::onAddSalon() {
     refreshTables();
     refreshAppointments();
     refreshSkillPool();
+    saveStateToDisk();
 
     log(QString("Salon eklendi ve aktif: %1").arg(name));
 }
@@ -694,6 +696,7 @@ void MainWindow::onAddEmployee() {
         refreshTables();
         refreshAppointments();
         refreshSkillPool();
+        saveStateToDisk();
     } else {
         log("Çalışan eklenemedi (aktif salon yok).");
     }
@@ -710,6 +713,7 @@ void MainWindow::onAddService() {
         log(QString("Hizmet eklendi: %1 (%2 dk)").arg(name).arg(spnServiceDuration->value()));
         refreshTables();
         refreshSkillPool();
+        saveStateToDisk();
         refreshEmployeeCandidates();
     } else {
         log("Hizmet eklenemedi (aktif salon yok).");
@@ -727,6 +731,7 @@ void MainWindow::onAddSkillToEmployee() {
     if (salonController.addSkillToEmployee(static_cast<size_t>(idx), skill.toStdString())) {
         log(QString("Yetenek eklendi: %1 -> %2").arg(skill).arg(cmbEmployeeEdit->currentText()));
         refreshTables();
+        saveStateToDisk();
     } else {
         log("Yetenek eklenemedi.");
     }
@@ -746,6 +751,7 @@ void MainWindow::onAddAvailabilityToEmployee() {
         log(QString("Uygunluk eklendi: %1 -> %2").arg(QDateTime(d, t, Qt::LocalTime).toString("dd.MM.yyyy HH:mm"))
                 .arg(cmbEmployeeEdit->currentText()));
         refreshTables();
+        saveStateToDisk();
     } else {
         log("Uygunluk eklenemedi.");
     }
@@ -753,23 +759,62 @@ void MainWindow::onAddAvailabilityToEmployee() {
 
 /* ===================== JSON Kalıcılık ===================== */
 
-void MainWindow::onSaveJson() {
-    const QString path = QFileDialog::getSaveFileName(this, "JSON'a Kaydet", "salon.json", "JSON (*.json)");
-    if (path.isEmpty()) return;
+void MainWindow::saveStateToDisk() {
+    if (dataFilePath.isEmpty()) return;
 
-    const QByteArray data = serializeSalonToJson();
-    QFile f(path);
+    QDir().mkpath(dataDirPath);
+    QFile f(dataFilePath);
     if (!f.open(QIODevice::WriteOnly)) {
-        log("Dosya açılamadı: " + path);
+        log("Otomatik kayıt açılamadı: " + dataFilePath);
         return;
     }
-    f.write(data);
+
+    f.write(serializeSalonToJson());
     f.close();
-    log("Kaydedildi: " + path);
+    log("Değişiklikler kaydedildi: " + dataFilePath);
+}
+
+bool MainWindow::loadStateFromDisk() {
+    QFile f(dataFilePath);
+    if (!f.exists()) return false;
+
+    if (!f.open(QIODevice::ReadOnly)) {
+        log("Kayıt dosyası okunamadı: " + dataFilePath);
+        return false;
+    }
+
+    const QByteArray data = f.readAll();
+    f.close();
+
+    if (!deserializeSalonFromJson(data)) {
+        log("Kayıt dosyası parse edilemedi, demo veya elle ekleme yapabilirsin.");
+        return false;
+    }
+
+    refreshSalonCombo();
+    refreshTables();
+    refreshAppointments();
+    refreshEmployeeCandidates();
+    refreshSkillPool();
+
+    log("Diskteki kayıt yüklendi: " + dataFilePath);
+    return true;
+}
+
+void MainWindow::onSaveJson() {
+    saveStateToDisk();
+
+    const QString path = QFileDialog::getSaveFileName(this, "JSON'a Kaydet", dataFilePath, "JSON (*.json)");
+    if (path.isEmpty() || path == dataFilePath) return;
+
+    QFile::remove(path); // overwriting için
+
+    QFile::copy(dataFilePath, path);
+    log("Dışa aktarıldı: " + path);
 }
 
 void MainWindow::onLoadJson() {
-    const QString path = QFileDialog::getOpenFileName(this, "JSON'dan Yükle", "", "JSON (*.json)");
+    const QString path = QFileDialog::getOpenFileName(this, "JSON'dan Yükle", dataDirPath, "JSON (*.json)");
     if (path.isEmpty()) return;
 
     QFile f(path);
@@ -785,6 +830,7 @@ void MainWindow::onLoadJson() {
         refreshTables();
         refreshAppointments();
         refreshEmployeeCandidates();
+        saveStateToDisk();
         log("Yüklendi: " + path);
     } else {
         log("JSON yüklenemedi: " + path);
@@ -964,13 +1010,14 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
         for (const auto& av : apps) {
             const auto a = av.toObject();
 
-            const int ei = a.value("employeeIndex").toInt(-1);
-            const int si = a.value("serviceIndex").toInt(-1);
+            bool eiOk = false, siOk = false;
+            const int ei = safeToInt(a.value("employeeIndex"), eiOk);
+            const int si = safeToInt(a.value("serviceIndex"), siOk);
 
             const auto& empList = salon.getEmployees();
             const auto& svcList = salon.getServices();
 
-            if (ei < 0 || si < 0) continue;
+            if (!eiOk || !siOk || ei < 0 || si < 0) continue;
 
             const auto eIdx = static_cast<size_t>(ei);
             const auto sIdx = static_cast<size_t>(si);

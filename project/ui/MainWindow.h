@@ -1,6 +1,7 @@
 // project/ui/MainWindow.h
 #pragma once
 #include <QMainWindow>
+#include <QDir>
 #include <memory>
 
 class QTableWidget;
@@ -47,6 +48,8 @@ private slots:
     // yeni: kalıcılık
     void onSaveJson();
     void onLoadJson();
+    void saveStateToDisk();
+    bool loadStateFromDisk();
 
 private:
     void buildUi();
@@ -68,6 +71,9 @@ private:
     // yeni: JSON serileştirme yardımcıları
     QByteArray serializeSalonToJson() const;
     bool       deserializeSalonFromJson(const QByteArray& data);
+
+    QString dataDirPath;
+    QString dataFilePath;
 
 private:
     Ui::MainWindow* ui{nullptr};
