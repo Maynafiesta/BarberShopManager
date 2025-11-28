@@ -32,6 +32,7 @@
 #include <QHash>
 #include <algorithm>
 #include <set>
+#include <optional>
 #include <QCoreApplication>
 
 namespace {
@@ -41,19 +42,18 @@ int safeToInt(const QVariant& var, bool& ok) {
 }
 
 int safeToInt(const QJsonValue& value, bool& ok) {
-    ok = false;
+    const int val = value.toInt(&ok);
+    return ok ? val : -1;
+}
 
-    // Sadece sayısal veya string ise dene
-    if (!value.isDouble() && !value.isString())
-        return -1;
+std::optional<TimeSlot> buildSlot(const QDate& day, const QTime& start, const QTime& end) {
+    if (end <= start) return std::nullopt;
+    const int durationMinutes = static_cast<int>(start.secsTo(end) / 60);
+    if (durationMinutes <= 0) return std::nullopt;
 
-    int v = value.toInt(-1);   // default -1: geçersiz/boş için
-    if (v < 0) {
-        return -1;
-    }
-
-    ok = true;
-    return v;
+    TimeSlot slot { static_cast<std::time_t>(QDateTime(day, start, Qt::LocalTime).toSecsSinceEpoch()),
+                    durationMinutes };
+    return slot;
 }
 }
 
@@ -202,16 +202,15 @@ void MainWindow::buildUi() {
     lstEmpSkills->setSelectionMode(QAbstractItemView::NoSelection);
     edtEmpAvailStart = new QTimeEdit(QTime(10, 0), gbEmp);
     edtEmpAvailStart->setDisplayFormat("HH:mm");
-    spnEmpAvailDuration = new QSpinBox(gbEmp);
-    spnEmpAvailDuration->setRange(15, 12 * 60);
-    spnEmpAvailDuration->setValue(240);
+    edtEmpAvailEnd   = new QTimeEdit(QTime(18, 0), gbEmp);
+    edtEmpAvailEnd->setDisplayFormat("HH:mm");
     auto* btnAddEmp = new QPushButton("Çalışan Ekle", gbEmp);
     fEmp->addRow("Ad Soyad", edtEmpName);
     fEmp->addRow("Telefon", edtEmpPhone);
     fEmp->addRow("Salon", cmbSalonForEmployee);
     fEmp->addRow("Yetenek havuzu", lstEmpSkills);
     fEmp->addRow("Uygunluk başlangıç", edtEmpAvailStart);
-    fEmp->addRow("Uygunluk süre (dk)", spnEmpAvailDuration);
+    fEmp->addRow("Uygunluk bitiş", edtEmpAvailEnd);
     fEmp->addRow(btnAddEmp);
 
     auto* gbSvc = new QGroupBox("Hizmet ekle", adminTab);
@@ -234,20 +233,19 @@ void MainWindow::buildUi() {
     auto* fEdit  = new QFormLayout(gbEdit);
     cmbEmployeeEdit   = new QComboBox(gbEdit);
     cmbEmployeeEdit->setPlaceholderText("Salon + çalışan seç");
-    cmbSkillPool     = new QComboBox(gbEdit);
-    cmbSkillPool->setPlaceholderText("Hizmet/yetenek seç");
+    lstEditSkills    = new QListWidget(gbEdit);
+    lstEditSkills->setSelectionMode(QAbstractItemView::NoSelection);
     edtNewAvailStart = new QTimeEdit(QTime(12,0), gbEdit);
     edtNewAvailStart->setDisplayFormat("HH:mm");
-    spnNewAvailDuration = new QSpinBox(gbEdit);
-    spnNewAvailDuration->setRange(15, 12 * 60);
-    spnNewAvailDuration->setValue(120);
-    auto* btnAddSkill = new QPushButton("Yetenek Ekle", gbEdit);
+    edtNewAvailEnd   = new QTimeEdit(QTime(18,0), gbEdit);
+    edtNewAvailEnd->setDisplayFormat("HH:mm");
+    auto* btnAddSkill = new QPushButton("Yetenekleri Güncelle", gbEdit);
     auto* btnAddAvail = new QPushButton("Yeni Uygunluk Ekle", gbEdit);
     fEdit->addRow("Çalışan", cmbEmployeeEdit);
-    fEdit->addRow("Yeni yetenek", cmbSkillPool);
+    fEdit->addRow("Yetenekler", lstEditSkills);
     fEdit->addRow(btnAddSkill);
     fEdit->addRow("Uygunluk başlangıç", edtNewAvailStart);
-    fEdit->addRow("Uygunluk süre (dk)", spnNewAvailDuration);
+    fEdit->addRow("Uygunluk bitiş", edtNewAvailEnd);
     fEdit->addRow(btnAddAvail);
 
     adminLayout->addWidget(gbSalon);
@@ -286,6 +284,7 @@ void MainWindow::buildUi() {
     connect(btnAddSkill, &QPushButton::clicked, this, &MainWindow::onAddSkillToEmployee);
     connect(btnAddAvail, &QPushButton::clicked, this, &MainWindow::onAddAvailabilityToEmployee);
     connect(cmbSalonForEmployee, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::refreshSkillPool);
+    connect(cmbEmployeeEdit, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::refreshSkillPool);
 }
 
 void MainWindow::refreshTables() {
@@ -403,13 +402,22 @@ void MainWindow::refreshSkillPool() {
     if (const auto* salon = currentSalon())
         editSkills = gatherSkills(*salon);
 
-    if (cmbSkillPool) {
-        cmbSkillPool->blockSignals(true);
-        cmbSkillPool->clear();
-        for (const auto& s : editSkills)
-            cmbSkillPool->addItem(QString::fromStdString(s));
-        cmbSkillPool->setEnabled(!editSkills.empty());
-        cmbSkillPool->blockSignals(false);
+    if (lstEditSkills) {
+        lstEditSkills->clear();
+        const auto& emps = salonController.employees();
+        const int empIdx = cmbEmployeeEdit ? cmbEmployeeEdit->currentIndex() : -1;
+        std::set<std::string> owned;
+        if (empIdx >= 0 && empIdx < static_cast<int>(emps.size())) {
+            for (const auto& sk : emps[static_cast<size_t>(empIdx)].getSkills())
+                owned.insert(sk);
+        }
+
+        for (const auto& s : editSkills) {
+            auto* item = new QListWidgetItem(QString::fromStdString(s), lstEditSkills);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(owned.count(s) ? Qt::Checked : Qt::Unchecked);
+        }
+        lstEditSkills->setEnabled(!editSkills.empty() && empIdx >= 0);
     }
 }
 
@@ -644,18 +652,16 @@ void MainWindow::onAddSalon() {
     const QDate d = dateEdit->date();
     const QTime start = edtSalonStart->time();
     const QTime end   = edtSalonEnd->time();
-    if (end <= start) {
+    auto wh = buildSlot(d, start, end);
+    if (!wh) {
         log("Kapanış saati başlangıçtan sonra olmalı.");
         return;
     }
-    const int durationMinutes = static_cast<int>(start.secsTo(end) / 60);
-    TimeSlot wh { static_cast<std::time_t>(QDateTime(d, start, Qt::LocalTime).toSecsSinceEpoch()),
-                  durationMinutes };
 
     if (customers.empty())
         customers.emplace_back("Müşteri", "05xx xxx xx xx");
 
-    if (!salonController.addSalon(name.toStdString(), wh)) {
+    if (!salonController.addSalon(name.toStdString(), *wh)) {
         log("Aynı isimde salon zaten var.");
         return;
     }
@@ -695,10 +701,11 @@ void MainWindow::onAddEmployee() {
     }
 
     const QDate d = dateEdit->date();
-    const QTime t = edtEmpAvailStart->time();
-    TimeSlot avail { static_cast<std::time_t>(QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
-                     spnEmpAvailDuration->value() };
-    e.addAvailability(avail);
+    const QTime start = edtEmpAvailStart->time();
+    const QTime end   = edtEmpAvailEnd->time();
+    auto avail = buildSlot(d, start, end);
+    if (!avail) { log("Uygunluk bitişi başlangıçtan sonra olmalı."); return; }
+    e.addAvailability(*avail);
 
     const bool targetIsActive = salonController.activeSalonIndex() == static_cast<size_t>(salonIdx);
     if (salonController.addEmployeeToSalon(static_cast<size_t>(salonIdx), e)) {
@@ -736,15 +743,23 @@ void MainWindow::onAddSkillToEmployee() {
     const int idx = cmbEmployeeEdit->currentIndex();
     if (idx < 0) { log("Çalışan seç."); return; }
 
-    const QString skill = cmbSkillPool ? cmbSkillPool->currentText().trimmed() : QString();
-    if (skill.isEmpty()) { log("Hizmet / yetenek seç."); return; }
+    std::vector<std::string> desired;
+    if (lstEditSkills) {
+        for (int i = 0; i < lstEditSkills->count(); ++i) {
+            auto* item = lstEditSkills->item(i);
+            if (item->checkState() == Qt::Checked)
+                desired.push_back(item->text().toStdString());
+        }
+    }
 
-    if (salonController.addSkillToEmployee(static_cast<size_t>(idx), skill.toStdString())) {
-        log(QString("Yetenek eklendi: %1 -> %2").arg(skill).arg(cmbEmployeeEdit->currentText()));
+    if (desired.empty()) { log("En az bir yetenek seç."); return; }
+
+    if (salonController.setEmployeeSkills(static_cast<size_t>(idx), desired)) {
+        log(QString("Yetenekler güncellendi: %1").arg(cmbEmployeeEdit->currentText()));
         refreshTables();
         saveStateToDisk();
     } else {
-        log("Yetenek eklenemedi.");
+        log("Yetenek güncellenemedi.");
     }
 }
 
@@ -754,12 +769,13 @@ void MainWindow::onAddAvailabilityToEmployee() {
     if (idx < 0) { log("Çalışan seç."); return; }
 
     const QDate d = dateEdit->date();
-    const QTime t = edtNewAvailStart->time();
-    TimeSlot slot { static_cast<std::time_t>(QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
-                    spnNewAvailDuration->value() };
+    const QTime start = edtNewAvailStart->time();
+    const QTime end   = edtNewAvailEnd->time();
+    auto slot = buildSlot(d, start, end);
+    if (!slot) { log("Uygunluk bitişi başlangıçtan sonra olmalı."); return; }
 
-    if (salonController.addAvailabilityToEmployee(static_cast<size_t>(idx), slot)) {
-        log(QString("Uygunluk eklendi: %1 -> %2").arg(QDateTime(d, t, Qt::LocalTime).toString("dd.MM.yyyy HH:mm"))
+    if (salonController.addAvailabilityToEmployee(static_cast<size_t>(idx), *slot)) {
+        log(QString("Uygunluk eklendi: %1 -> %2").arg(QDateTime(d, start, Qt::LocalTime).toString("dd.MM.yyyy HH:mm"))
                 .arg(cmbEmployeeEdit->currentText()));
         refreshTables();
         saveStateToDisk();
@@ -868,7 +884,7 @@ QByteArray MainWindow::serializeSalonToJson() const {
             for (const auto& t : e.getAvailability()) {
                 QJsonObject to;
                 to["startEpoch"] = static_cast<qint64>(t.startEpoch);
-                to["duration"]   = t.durationMinutes;
+                to["endEpoch"]   = static_cast<qint64>(t.endEpoch());
                 avail.push_back(to);
             }
             obj["availability"] = avail;
@@ -897,7 +913,7 @@ QByteArray MainWindow::serializeSalonToJson() const {
         for (const auto& a : aList) {
             QJsonObject ao;
             ao["startEpoch"] = static_cast<qint64>(a.getSlot().startEpoch);
-            ao["duration"]   = a.getSlot().durationMinutes;
+            ao["endEpoch"]   = static_cast<qint64>(a.getSlot().endEpoch());
 
             int ei = -1;
             if (a.getEmployee()) {
@@ -927,7 +943,7 @@ QByteArray MainWindow::serializeSalonToJson() const {
 
         QJsonObject working;
         working["startEpoch"] = static_cast<qint64>(salon.getWorkingHours().startEpoch);
-        working["duration"]   = salon.getWorkingHours().durationMinutes;
+        working["endEpoch"]   = static_cast<qint64>(salon.getWorkingHours().endEpoch());
 
         QJsonObject sroot;
         sroot["name"]         = QString::fromStdString(salon.getName());
@@ -984,8 +1000,12 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
 
         const auto wh = sObj.value("workingHours").toObject();
         TimeSlot whs;
-        whs.startEpoch      = static_cast<std::time_t>(wh.value("startEpoch").toVariant().toLongLong());
-        whs.durationMinutes = wh.value("duration").toInt(12 * 60);
+        whs.startEpoch = static_cast<std::time_t>(wh.value("startEpoch").toVariant().toLongLong());
+        const auto whEnd = static_cast<std::time_t>(wh.value("endEpoch").toVariant().toLongLong());
+        if (whEnd > whs.startEpoch)
+            whs.durationMinutes = static_cast<int>((whEnd - whs.startEpoch) / 60);
+        else
+            whs.durationMinutes = wh.value("duration").toInt(12 * 60);
         salon.setWorkingHours(whs);
 
         const auto employees = sObj.value("employees").toArray();
@@ -1000,9 +1020,14 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
             for (const auto& av : e.value("availability").toArray()) {
                 const auto ao = av.toObject();
                 TimeSlot ts;
-                ts.startEpoch      = static_cast<std::time_t>(ao.value("startEpoch").toVariant().toLongLong());
-                ts.durationMinutes = ao.value("duration").toInt();
-                emp.addAvailability(ts);
+                ts.startEpoch = static_cast<std::time_t>(ao.value("startEpoch").toVariant().toLongLong());
+                const auto endEpoch = static_cast<std::time_t>(ao.value("endEpoch").toVariant().toLongLong());
+                if (endEpoch > ts.startEpoch)
+                    ts.durationMinutes = static_cast<int>((endEpoch - ts.startEpoch) / 60);
+                else
+                    ts.durationMinutes = ao.value("duration").toInt();
+                if (ts.durationMinutes > 0)
+                    emp.addAvailability(ts);
             }
             salon.addEmployee(emp);
         }
@@ -1039,8 +1064,13 @@ bool MainWindow::deserializeSalonFromJson(const QByteArray& data) {
             const Service*  sptr = &svcList[sIdx];
 
             TimeSlot ts;
-            ts.startEpoch      = static_cast<std::time_t>(a.value("startEpoch").toVariant().toLongLong());
-            ts.durationMinutes = a.value("duration").toInt();
+            ts.startEpoch = static_cast<std::time_t>(a.value("startEpoch").toVariant().toLongLong());
+            const auto endEpoch = static_cast<std::time_t>(a.value("endEpoch").toVariant().toLongLong());
+            if (endEpoch > ts.startEpoch)
+                ts.durationMinutes = static_cast<int>((endEpoch - ts.startEpoch) / 60);
+            else
+                ts.durationMinutes = a.value("duration").toInt();
+            if (ts.durationMinutes <= 0) continue;
 
             Appointment made(&customers.front(), eptr, *sptr, ts);
 
