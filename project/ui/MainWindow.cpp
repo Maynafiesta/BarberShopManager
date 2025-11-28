@@ -578,8 +578,8 @@ void MainWindow::onCreateAppointment() {
 
     const QDate d = dateEdit->date();
     const QTime t = timeEdit->time();
-    TimeSlot slot { static_cast<std::time_t>(
-        QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
+    TimeSlot slot {
+        static_cast<std::time_t>(QDateTime(d, t, Qt::LocalTime).toSecsSinceEpoch()),
         service.getDurationMinutes()
     };
 
